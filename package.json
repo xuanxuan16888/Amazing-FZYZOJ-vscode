@@ -1,0 +1,166 @@
+{
+    "name": "yzoj-vscode",
+    "displayName": "YZOJ-vscode",
+    "version": "0.0.1",
+    "publisher": "yzoj",
+    "description": "YZOJ VSCode Extension",
+    "icon": "favicon.ico",
+    "main": "./extension/extension.js",
+    "engines": {
+        "vscode": "^1.80.0"
+    },
+    "activationEvents": [
+        "onCommand:yzoj.login",
+        "onCommand:yzoj.showScheduledContests",
+        "onCommand:yzoj.showActiveContests",
+        "onCommand:yzoj.showPastContests",
+        "onCommand:yzoj.openContestDetail",
+        "onCommand:yzoj.openProblemDetail",
+        "onCommand:yzoj.submitCode",
+        "onCommand:yzoj.showProblemSetList",
+        "onCommand:yzoj.openProblemSetDetail",
+        "onCommand:yzoj.showRanklist",
+        "onCommand:yzoj.showDiscussionList",
+        "onCommand:yzoj.openDiscussionDetail",
+        "onCommand:yzoj.showStatusList"
+    ],
+    "contributes": {
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "yzoj",
+                    "title": "YZOJ",
+                    "icon": "icon.png"
+                }
+            ]
+        },
+        "views": {
+            "yzoj": [
+                {
+                    "type": "tree",
+                    "id": "yzojCommands",
+                    "name": "YZOJ 命令",
+                    "icon": "icon.png"
+                }
+            ]
+        },
+        "commands": [
+            {
+                "command": "yzoj.login",
+                "title": "YZOJ:登录"
+            },
+            {
+                "command": "yzoj.showScheduledContests",
+                "title": "YZOJ:显示计划中的比赛"
+            },
+            {
+                "command": "yzoj.showActiveContests",
+                "title": "YZOJ:显示进行中的比赛"
+            },
+            {
+                "command": "yzoj.showPastContests",
+                "title": "YZOJ:显示过去的比赛"
+            },
+            {
+                "command": "yzoj.openContestDetail",
+                "title": "YZOJ:显示比赛详情"
+            },
+            {
+                "command": "yzoj.openProblemDetail",
+                "title": "YZOJ:显示题目详情"
+            },
+            {
+                "command": "yzoj.submitCode",
+                "title": "YZOJ:递交代码"
+            },
+            {
+                "command": "yzoj.openStatusDetail",
+                "title": "YZOJ:显示评测记录"
+            },
+            {
+                "command": "yzoj.showStatusList",
+                "title": "YZOJ:显示评测列表"
+            },
+            {
+                "command": "yzoj.showProblemList",
+                "title": "YZOJ:显示题目列表"
+            },
+            {
+                "command": "yzoj.showHomepage",
+                "title": "YZOJ:首页"
+            },
+            {
+                "command": "yzoj.showDiscussionList",
+                "title": "YZOJ:讨论区"
+            },
+            {
+                "command": "yzoj.openDiscussionDetail",
+                "title": "YZOJ:查看讨论"
+            },
+            {
+                "command": "yzoj.showProblemSetList",
+                "title": "YZOJ:显示题单列表"
+            },
+            {
+                "command": "yzoj.openProblemSetDetail",
+                "title": "YZOJ:查看题单详情"
+            },
+            {
+                "command": "yzoj.showRanklist",
+                "title": "YZOJ:选手排名"
+            },
+            {
+                "command": "yzoj.openUserProfile",
+                "title": "YZOJ:查看个人主页"
+            },
+            {
+                "command": "yzoj.openProblemStatus",
+                "title": "YZOJ:查看题目状态"
+            },
+            {
+                "command": "yzoj.openContestResult",
+                "title": "YZOJ:比赛结果"
+            },
+            {
+                "command": "yzoj.openContestStatus",
+                "title": "YZOJ:比赛评测状态"
+            }
+        ],
+        "configuration": {
+            "title": "YZOJ",
+            "properties": {
+                "yzoj.baseUrl": {
+                    "type": "string",
+                    "default": "https://183.250.108.194:500",
+                    "description": "学校 OJ 地址，不包含/OnlineJudge"
+                },
+                "yzoj.proxyServer": {
+                    "type": "string",
+                    "default": "http://127.0.0.1:8199",
+                    "description": "辅助代理服务器地址 (Python 服务器)，用于题目列表搜索和爬取管理"
+                },
+                "yzoj.contest.defaultCodeTemplate": {
+                    "type": "string",
+                    "default": "#include <bits/stdc++.h>\nusing namespace std;\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    return 0;\n}\n",
+                    "description": "创建比赛文件夹时使用的默认代码模板。支持占位符：{PID}(题序)、{PROBLEM_ID}(真实题号)、{PROBLEM_NAME}(题名)、{CONTEST_ID}(比赛ID)、{CONTEST_NAME}(比赛名)、{DATE}(YYYY-MM-DD)"
+                }
+            }
+        }
+    },
+    "dependencies": {
+        "@vscode/markdown-it-katex": "^1.1.2",
+        "cheerio": "^1.2.0",
+        "form-data": "^4.0.5",
+        "iconv-lite": "^0.7.2",
+        "katex": "^0.17.0",
+        "markdown-it": "^14.3.0",
+        "markdown-palettes": "^0.4.13",
+        "node-abort-controller": "^3.1.1",
+        "node-fetch": "^2.7.0"
+    },
+    "devDependencies": {
+        "@typescript-eslint/eslint-plugin": "^8.62.1",
+        "@typescript-eslint/parser": "^8.62.1",
+        "eslint": "^10.6.0"
+    }
+}

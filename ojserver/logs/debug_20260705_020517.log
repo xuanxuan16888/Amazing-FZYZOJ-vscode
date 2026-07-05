@@ -1,0 +1,10 @@
+=== DEBUG LOG [profile_full_h2a_span] ===
+Source: h2a span color extraction
+Timestamp: 2026-07-05T02:05:17.922854
+
+=== CONTENT ===
+h2a_span found: True, style: font-family:georgia;text-shadow:0px 0px 5px white;
+
+=== RAW HTML (162 chars) ===
+<span style="font-family:georgia;text-shadow:0px 0px 5px white;"><strong><span style="color:black;">S</span><span style="color:#FF0000;">td</span></strong></span>
+
