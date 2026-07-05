@@ -1,8 +1,9 @@
 {
-    "name": "yzoj-vscode",
-    "displayName": "YZOJ-vscode",
+    "name": "fzyzoj-vscode",
+    "displayName": "Amazing FZYZOJ-vscode",
     "version": "0.0.1",
-    "publisher": "yzoj",
+    "publisher": "xuanxuanmeow",
+    "repository": "https://github.com/xuanxuan16888/Amazing-FZYZOJ-vscode.git",
     "description": "YZOJ VSCode Extension",
     "icon": "favicon.ico",
     "main": "./extension/extension.js",
@@ -131,17 +132,17 @@
             "properties": {
                 "yzoj.baseUrl": {
                     "type": "string",
-                    "default": "https://183.250.108.194:500",
+                    "default": "",
                     "description": "学校 OJ 地址，不包含/OnlineJudge"
                 },
                 "yzoj.proxyServer": {
                     "type": "string",
                     "default": "http://127.0.0.1:8199",
-                    "description": "辅助代理服务器地址 (Python 服务器)，用于题目列表搜索和爬取管理"
+                    "description": "辅助服务器地址，用于题目列表搜索和爬取管理"
                 },
                 "yzoj.contest.defaultCodeTemplate": {
                     "type": "string",
-                    "default": "#include <bits/stdc++.h>\nusing namespace std;\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    return 0;\n}\n",
+                    "default": "#include <bits/stdc++.h>\nusing namespace std;\nint main(){\n    return 0;\n}\n",
                     "description": "创建比赛文件夹时使用的默认代码模板。支持占位符：{PID}(题序)、{PROBLEM_ID}(真实题号)、{PROBLEM_NAME}(题名)、{CONTEST_ID}(比赛ID)、{CONTEST_NAME}(比赛名)、{DATE}(YYYY-MM-DD)"
                 }
             }
