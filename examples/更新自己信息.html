@@ -1,0 +1,250 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-CN">
+<head>
+	<meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />	<title>更新用户信息 - FZYZ Online Judge</title>
+	<link media="all" href="/OnlineJudge/reset.css?v=20170630.01" type="text/css" rel="stylesheet" />
+	<link media="all" href="/OnlineJudge/style.css?v=20200612" type="text/css" rel="stylesheet" />
+	<link href="/OnlineJudge/ext.css" media="screen" rel="stylesheet" type="text/css" />
+	<link rel="icon" href="/OnlineJudge/favicon.ico" type="image/x-icon" />
+	<link rel="shortcut icon" href="/OnlineJudge/favicon.ico" type="image/x-icon" />
+	<script type="text/javascript" src="/OnlineJudge/jquery-3.0.0.min.js"></script>
+	<script type="text/javascript" src="/OnlineJudge/scripts/tablefroze.js"></script>
+	<script type="text/javascript" src="/OnlineJudge/scripts/main.js?v=20190506"></script>
+	
+	<script src="/OnlineJudge/morris.min.js" ></script>		
+    <link type="text/css" rel="stylesheet" href="/OnlineJudge/morris.css" />	
+    <script src="/OnlineJudge/raphael.min.js"></script>
+	
+	<!--[if lte IE 9]><script type="text/javascript">$.ajaxSetup({cache: false});</script><![endif]-->
+	<!--[if lte IE 7]><link media="all" href="/OnlineJudge/ie-fix.css" rel="stylesheet" /><![endif]-->
+	<!-- 数学公式渲染部分 -->
+	<!--<script type="text/x-mathjax-config"> 
+		MathJax.Hub.Config({ 
+			TeX: {equationNumbers: {autoNumber: ["AMS"], useLabelIds: true}}, 
+			"HTML-CSS": {linebreaks: {automatic: true}, scale: 100}, 
+			SVG: {linebreaks: {automatic: true}}
+		}); 
+	</script>-->
+	<script type="text/x-mathjax-config">
+		MathJax.Hub.Config({
+			showProcessingMessages: false,
+			tex2jax: {
+				inlineMath: [["$", "$"], ["\\(", "\\)"]],
+				processEscapes:true
+			}
+		});
+	</script>
+	<script>
+	    function HideMenu()
+	    {
+	    	//隐藏菜单因为会挡住东西，但是那个显示菜单还是会挡住东西……先去掉了……
+	    	$("div#ftoolbarshow").slideToggle();
+	    }
+
+	    
+
+	</script>
+	<script type="text/javascript" src="/OnlineJudge/mathjax/MathJax-2.6/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+	<!-- /数学公式渲染部分 -->
+</head>
+<body>
+	<div id="ftoolbarshow">
+		<div class="dropdown">
+			<div class="floatingtoobar" id="ftoolbar" style='z-index:9999'>
+				<div class="circle"><span style="color:white">+</span></div>
+			</div>
+		<div class="dropdown-content">
+			<div class="floatingtoobar" id="ftoolbar" style='z-index:9999'>
+			
+				<table id='tablelist' style='background-color:#FFFFFF'>
+				<tbody id='floatmenu_options'>
+				<tr><th><strong><a href='javascript:HideMenu()'>快速菜单</a></strong></th></tr>
+				
+				<tr><td><a href="javascript:jumpToTop()"><strong>↑&nbsp;跳到顶部</strong></a><br/></td></tr>
+				<tr><td><a href="javascript:jumpToBottom()"><strong>↓&nbsp;跳到底部</strong></a><br/></td></tr>
+				<tr><td><a href="javascript:history.back();"><strong>←&nbsp;返回上页</strong></a><br/></td></tr>
+				<tr><td><a href="javascript:location.reload();"><strong>↻&nbsp;刷新页面</strong></a></td></tr>
+			
+		
+				</tbody>
+	    		</table>
+	    	</div>
+		</div>
+		</div>
+	</div>
+	<script type="text/javascript">
+	</script>
+
+
+	<div id="header">
+		<div id="title">
+			<div class="headnav"><b><a href="/OnlineJudge/">首页</a>&nbsp;&nbsp;<a href="/OnlineJudge/discuss_list.php">讨论</a>&nbsp;&nbsp;<a href="/OnlineJudge/../wiki/" target="_blank">WIKI</a>&nbsp;&nbsp;<a href="/OnlineJudge/../Chinglun/" target="_blank">AAS</a>&nbsp;&nbsp;<a href="/OnlineJudge/../wiki/Noiblog" target="_blank">Blogs</a>&nbsp;
+								
+		    <div class="dropdown"><span>功能</span>
+                <div class="dropdown-content">
+                    <a href="/OnlineJudge/trailer.php" target="_blank">比赛预告</a>
+                    <a href="/OnlineJudge/group.php?id=1" target="_blank">学习小组1</a>
+                    <a href="/OnlineJudge/group.php?id=2" target="_blank">学习小组2</a>
+                </div>
+            </div>
+			</b></div>
+
+
+
+			<pagetitle><span style='font-family:georgia'>FZYZ Online Judge</span></pagetitle></br></br></br></br>
+			<span style='font-family:times new roman'><div class="time"></div></span>
+		</div>
+		<script>
+		initTime('/OnlineJudge/time_json.php');
+		</script>
+		<font color="black">
+		<div id="nav">
+		    <center>
+		  			<div class="col">
+				<h3>题库</h3>
+				<ul>
+					<li><a href="/OnlineJudge/problem_list.php">在线题库</a></li>
+					<li><a href="/OnlineJudge/tag_list.php">题目分类</a></li>
+					<li><form action="/OnlineJudge/problem_show.php" method="GET">
+						<label for="id">题号：</label>
+						<input type="text" maxlength="4" name="id" style="width: 5em;" id="probid" />
+						<input type="submit" value="转入" />
+					</form></li>
+				</ul>
+			</div><div class="col">
+				<h3>比赛</h3>
+				<ul>
+					<li><a href="/OnlineJudge/contest_list.php?action=now">进行中的比赛</a></li>
+					<li><a href="/OnlineJudge/contest_list.php?action=scheduled">计划中的比赛</a></li>
+					<li><a href="/OnlineJudge/contest_list.php?action=past">过去的比赛</a></li>
+				</ul>
+			</div><div class="col">
+				<h3>选手</h3>
+				<ul>
+					<li><a href="/OnlineJudge/status.php">评测记录</a></li>
+					<li><a href="/OnlineJudge/ranklist.php">选手排名</a></li>
+				</ul>
+				<li><form action="/OnlineJudge/user_show.php" method="GET">
+					<input type="text" name="uname" id="name" maxlength="15" />
+					<input type="submit" value="搜索" />
+				</form></li>
+		
+			</div>				<div class="col" id="userinfo">
+	<h3>用户信息</h3>
+		<div style="text-align: center;">
+	<li align="center">
+		<a href="/OnlineJudge/level_show.php?uid=2953"><span style="color:#E8D11D;font-family:times new roman,serif"><strong>Lv.6</strong></span></a>
+	&nbsp;&nbsp;
+	<a href="/OnlineJudge/user_show.php?id=2953"><span style="color:#EF9F15;font-family:georgia;text-shadow:0px 0px 5px white;"><strong>xuanxuanmeow</strong></span></a>&nbsp;<span style='color:blue;font-family:georgia'>2</span>	<li align="center">
+		<span style='font-family:Times new roman'>
+						<a href ="/OnlineJudge/user_show.php?id=2953"><span style="color: #E6C900">37.75%</span></a>(<a href ="/OnlineJudge/status.php?uid=2953&status=1">410</a>/<a href ="/OnlineJudge/status.php?uid=2953">1086</a>)
+		</span>
+	</li>
+	<li align="center">
+		<a href="/OnlineJudge/user_show.php">我</a>
+						<a href="/OnlineJudge/user_update.php?id=2953">修改</a>		<a href="/OnlineJudge/logout.php">退出</a>
+	</li>	
+		</div>
+			</div>
+			</center>
+		</div>
+		</font>
+	</div>
+	
+<script type="text/javascript">
+this.top.location !== this.location && (this.top.location = this.location);
+var backup_nav = $("div#nav").html();
+function current_user()
+{
+	return 2953;	
+}
+function earlier_than(dt)
+{
+	//alert($("div.time").html());
+	return Date.parse($("div.time").text()) < Date.parse(dt);
+}
+function current_username()
+{
+	return "xuanxuanmeow";
+}
+function confirm_jump(aaa, bbb)
+{
+	q = confirm(aaa);
+	if(q != "0") {window.location.href=bbb;}
+}
+function current_realname()
+{
+	return "姚祥轩";
+}
+function current_regnum()
+{
+	return "无准考证号";
+}
+</script>
+<div id='all'>
+<div id="content">
+	<h2>更新用户信息</h2>
+		<center>
+		</center>
+		
+	<form action="user_update.php?id=2953" method="POST">
+		<table style="margin: 10px auto; width: 100%">
+		<tbody>
+			<tr>
+				<td style="width: 45%; text-align: right; padding-right: 10px">用户名：</td>
+				<td style="width: 55%; padding-left: 10px"><input type="text" maxlength="50" name='username' value="xuanxuanmeow" readonly="readonly"></input></td>
+			</tr>
+			<tr>
+				<td style="text-align: right; padding-right: 10px">(*)&nbsp;真实姓名：</td>
+				<td style="padding-left: 10px"><input type="text" maxlength="50" name='realname' value="姚祥轩" readonly="readonly"></input></td>
+			</tr>
+									<tr>
+				<td style="text-align: right; padding-right: 10px">原密码：</td>
+				<td style="padding-left: 10px"><input type="password" name="oldpass"/></td>
+			</tr>
+									<tr>
+				<td style="text-align: right; padding-right: 10px">新密码：</td>
+				<td style="padding-left: 10px"><input type="password" name="newpass"/></td>
+			</tr>
+			<tr>
+				<td style="text-align: right; padding-right: 10px">重复新密码：</td>
+				<td style="padding-left: 10px"><input type="password" name="repass"/></td>
+			</tr>
+						<tr>
+				<td style="text-align: right; padding-right: 10px">(*)&nbsp;E-Mail：</td>
+				<td style="padding-left: 10px"><input type="text" maxlength="50" name="email" value="2590454593@qq.com"/></td>
+			</tr>
+						<tr>
+				<td style="text-align: right; padding-right: 10px">学校：</td>
+				<td style="padding-left: 10px">
+								<input type="text" name="school" value="福州三牧中学"/>
+				</td>
+			</tr>
+						<tr>
+				<td style="text-align: right; padding-right: 10px">标签：</td>
+				<td style="padding-left: 10px">
+				<input name="userlabel" value="超级大神犇" readonly/>
+				</td>
+			</tr>
+					</tbody>
+		</table>
+		<p align="center">
+		<input type="submit" value="提交" name="submit" />
+		<input type="button" value="重置" onclick="javascript:window.location.href='user_update.php?id=2953';" />
+		<input type="button" value="返回" onclick="javascript:window.location.href='index.php';" />
+		<input type="hidden" name="referer" value="index.php" />
+		</p>
+	</form>
+</div>
+	</div>
+    <div id="footer">
+        <div id="copyright">
+                Copyright &copy; 2010~2026 <a href="http://mrazy.org">MRain</a>, <a href="http://robotshell.org">Robot</a>, Sweetdum, <a href="http://magica.moe">Magica</a>, <a href="/OnlineJudge/../wiki/张哥哥语录">UFO</a>,  <a href="http://miskcoo.com">miskcoo</a>. All rights reserved.<br />
+                Thanks to <a href="http://upsuper.org">Upsuper</a>.<br />
+                Past maintainer: <a href="http://robotshell.org">Robot</a>, <a href="http://magica.moe">Magica</a>, <a href="/OnlineJudge/user_show.php?id=1199">Sweetdum</a>, <a href="/OnlineJudge/../wiki/张哥哥语录">UFO</a>, <a href="http://miskcoo.com">miskcoo</a>, <a href="/OnlineJudge/user_show.php?id=1275">immortal</a><a href="/OnlineJudge/../wiki/CJK语录">C</a><a href="javascript:alert('CJK好丧！……')">O</a>, <a href="/OnlineJudge/user_show.php?id=1595">981213</a>, <a href="/OnlineJudge/user_show.php?id=1770">zz<span hidden>AKQM</span>x</a>, <a href="https://www.steaunk.icu">Steaunk</a>.<br/>
+                Current maintainer: <a href="/OnlineJudge/user_show.php?id=1649">nealchen</a>.
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,568 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-CN">
+<head>
+	<meta http-equiv="Content-Type" content="text/html;charset=UTF-8" />	<title>题目编辑 P4511 - FZYZ Online Judge</title>
+	<link media="all" href="/OnlineJudge/reset.css?v=20170630.01" type="text/css" rel="stylesheet" />
+	<link media="all" href="/OnlineJudge/style.css?v=20200612" type="text/css" rel="stylesheet" />
+	<link href="/OnlineJudge/ext.css" media="screen" rel="stylesheet" type="text/css" />
+	<link rel="icon" href="/OnlineJudge/favicon.ico" type="image/x-icon" />
+	<link rel="shortcut icon" href="/OnlineJudge/favicon.ico" type="image/x-icon" />
+	<script type="text/javascript" src="/OnlineJudge/jquery-3.0.0.min.js"></script>
+	<script type="text/javascript" src="/OnlineJudge/scripts/tablefroze.js"></script>
+	<script type="text/javascript" src="/OnlineJudge/scripts/main.js?v=20190506"></script>
+	
+	<script src="/OnlineJudge/morris.min.js" ></script>		
+    <link type="text/css" rel="stylesheet" href="/OnlineJudge/morris.css" />	
+    <script src="/OnlineJudge/raphael.min.js"></script>
+	
+	<!--[if lte IE 9]><script type="text/javascript">$.ajaxSetup({cache: false});</script><![endif]-->
+	<!--[if lte IE 7]><link media="all" href="/OnlineJudge/ie-fix.css" rel="stylesheet" /><![endif]-->
+	<!-- 数学公式渲染部分 -->
+	<!--<script type="text/x-mathjax-config"> 
+		MathJax.Hub.Config({ 
+			TeX: {equationNumbers: {autoNumber: ["AMS"], useLabelIds: true}}, 
+			"HTML-CSS": {linebreaks: {automatic: true}, scale: 100}, 
+			SVG: {linebreaks: {automatic: true}}
+		}); 
+	</script>-->
+	<script type="text/x-mathjax-config">
+		MathJax.Hub.Config({
+			showProcessingMessages: false,
+			tex2jax: {
+				inlineMath: [["$", "$"], ["\\(", "\\)"]],
+				processEscapes:true
+			}
+		});
+	</script>
+	<script>
+	    function HideMenu()
+	    {
+	    	//隐藏菜单因为会挡住东西，但是那个显示菜单还是会挡住东西……先去掉了……
+	    	$("div#ftoolbarshow").slideToggle();
+	    }
+
+	    
+
+	</script>
+	<script type="text/javascript" src="/OnlineJudge/mathjax/MathJax-2.6/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+	<!-- /数学公式渲染部分 -->
+</head>
+<body>
+	<div id="ftoolbarshow">
+		<div class="dropdown">
+			<div class="floatingtoobar" id="ftoolbar" style='z-index:9999'>
+				<div class="circle"><span style="color:white">+</span></div>
+			</div>
+		<div class="dropdown-content">
+			<div class="floatingtoobar" id="ftoolbar" style='z-index:9999'>
+			
+				<table id='tablelist' style='background-color:#FFFFFF'>
+				<tbody id='floatmenu_options'>
+				<tr><th><strong><a href='javascript:HideMenu()'>快速菜单</a></strong></th></tr>
+				
+				<tr><td><a href="javascript:jumpToTop()"><strong>↑&nbsp;跳到顶部</strong></a><br/></td></tr>
+				<tr><td><a href="javascript:jumpToBottom()"><strong>↓&nbsp;跳到底部</strong></a><br/></td></tr>
+				<tr><td><a href="javascript:history.back();"><strong>←&nbsp;返回上页</strong></a><br/></td></tr>
+				<tr><td><a href="javascript:location.reload();"><strong>↻&nbsp;刷新页面</strong></a></td></tr>
+			
+		
+				</tbody>
+	    		</table>
+	    	</div>
+		</div>
+		</div>
+	</div>
+	<script type="text/javascript">
+	</script>
+
+
+	<div id="header">
+		<div id="title">
+			<div class="headnav"><b><a href="/OnlineJudge/">首页</a>&nbsp;&nbsp;<a href="/OnlineJudge/discuss_list.php">讨论</a>&nbsp;&nbsp;<a href="/OnlineJudge/../wiki/" target="_blank">WIKI</a>&nbsp;&nbsp;<a href="/OnlineJudge/../Chinglun/" target="_blank">AAS</a>&nbsp;&nbsp;<a href="/OnlineJudge/../wiki/Noiblog" target="_blank">Blogs</a>&nbsp;
+								
+		    <div class="dropdown"><span>功能</span>
+                <div class="dropdown-content">
+                    <a href="/OnlineJudge/trailer.php" target="_blank">比赛预告</a>
+                    <a href="/OnlineJudge/group.php?id=1" target="_blank">学习小组1</a>
+                    <a href="/OnlineJudge/group.php?id=2" target="_blank">学习小组2</a>
+                </div>
+            </div>
+			</b></div>
+
+
+
+			<pagetitle><span style='font-family:georgia'>FZYZ Online Judge</span></pagetitle></br></br></br></br>
+			<span style='font-family:times new roman'><div class="time"></div></span>
+		</div>
+		<script>
+		initTime('/OnlineJudge/time_json.php');
+		</script>
+		<font color="black">
+		<div id="nav">
+		    <center>
+		  			<div class="col">
+				<h3>题库</h3>
+				<ul>
+					<li><a href="/OnlineJudge/problem_list.php">在线题库</a></li>
+					<li><a href="/OnlineJudge/tag_list.php">题目分类</a></li>
+					<li><form action="/OnlineJudge/problem_show.php" method="GET">
+						<label for="id">题号：</label>
+						<input type="text" maxlength="4" name="id" style="width: 5em;" id="probid" />
+						<input type="submit" value="转入" />
+					</form></li>
+				</ul>
+			</div><div class="col">
+				<h3>比赛</h3>
+				<ul>
+					<li><a href="/OnlineJudge/contest_list.php?action=now">进行中的比赛</a></li>
+					<li><a href="/OnlineJudge/contest_list.php?action=scheduled">计划中的比赛</a></li>
+					<li><a href="/OnlineJudge/contest_list.php?action=past">过去的比赛</a></li>
+				</ul>
+			</div><div class="col">
+				<h3>选手</h3>
+				<ul>
+					<li><a href="/OnlineJudge/status.php">评测记录</a></li>
+					<li><a href="/OnlineJudge/ranklist.php">选手排名</a></li>
+				</ul>
+				<li><form action="/OnlineJudge/user_show.php" method="GET">
+					<input type="text" name="uname" id="name" maxlength="15" />
+					<input type="submit" value="搜索" />
+				</form></li>
+		
+			</div>				<div class="col" id="userinfo">
+	<h3>用户信息</h3>
+		<div style="text-align: center;">
+	<li align="center">
+		<a href="/OnlineJudge/level_show.php?uid=2953"><span style="color:#E8D11D;font-family:times new roman,serif"><strong>Lv.6</strong></span></a>
+	&nbsp;&nbsp;
+	<a href="/OnlineJudge/user_show.php?id=2953"><span style="color:#EF9F15;font-family:georgia;text-shadow:0px 0px 5px white;"><strong>xuanxuanmeow</strong></span></a>&nbsp;<span style='color:blue;font-family:georgia'>2</span>	<li align="center">
+		<span style='font-family:Times new roman'>
+						<a href ="/OnlineJudge/user_show.php?id=2953"><span style="color: #E6C900">37.75%</span></a>(<a href ="/OnlineJudge/status.php?uid=2953&status=1">410</a>/<a href ="/OnlineJudge/status.php?uid=2953">1086</a>)
+		</span>
+	</li>
+	<li align="center">
+		<a href="/OnlineJudge/user_show.php">我</a>
+						<a href="/OnlineJudge/user_update.php?id=2953">修改</a>		<a href="/OnlineJudge/logout.php">退出</a>
+	</li>	
+		</div>
+			</div>
+			</center>
+		</div>
+		</font>
+	</div>
+	
+<script type="text/javascript">
+this.top.location !== this.location && (this.top.location = this.location);
+var backup_nav = $("div#nav").html();
+function current_user()
+{
+	return 2953;	
+}
+function earlier_than(dt)
+{
+	//alert($("div.time").html());
+	return Date.parse($("div.time").text()) < Date.parse(dt);
+}
+function current_username()
+{
+	return "xuanxuanmeow";
+}
+function confirm_jump(aaa, bbb)
+{
+	q = confirm(aaa);
+	if(q != "0") {window.location.href=bbb;}
+}
+function current_realname()
+{
+	return "姚祥轩";
+}
+function current_regnum()
+{
+	return "无准考证号";
+}
+function login_refresh() {
+	$.get("/OnlineJudge/user.php?cmd=stat", function(data, status) {
+		if(data.login == false) {
+			alert("您的登录已失效，请重新登录。");
+			$( "#userinfo" ).load( "/OnlineJudge/user.php?norefresh=1", function( response, status, xhr ) {
+				$('#userinfo').html(response);
+			});
+		} else {
+			setTimeout(login_refresh, 10000);
+		}
+	});
+}
+setTimeout(login_refresh, 10000);
+</script>
+<div id='all'>
+<div id="content">
+<h2>题目编辑 - P4511</h2>
+<form method="POST" enctype="multipart/form-data" action="problem_edit.php?id=4511">
+<script src="/OnlineJudge/codemirror/lib/codemirror.js"></script>
+<link rel="stylesheet" href="/OnlineJudge/codemirror/lib/codemirror.css">
+<script src="/OnlineJudge/codemirror/mode/clike/clike.js"></script>
+<script src="/OnlineJudge/codemirror/mode/pascal/pascal.js"></script>
+<script src="/OnlineJudge/ckeditor/ckeditor.js"></script>
+<script src="/OnlineJudge/ckfinder/ckfinder.js"></script>
+<script src="/OnlineJudge/ckeditor/adapters/jquery.js"></script>
+
+<div style="width:100%; margin: 15px auto; display: block;">
+	<table style="margin-top: 5px; width: 100%;">
+		<tbody>
+			<tr>
+				<td width="10%">题目名称：</td>
+				<td width="25%"><input type="text" name="pname" size="30" value="[NOI 2019 四校联训 Round 7]送分题"/></td>
+				<td width="10%">出题人：</td>
+				<td width="25%"><input type="text" name="prop_uname" size="30" value="sq_cxh|xjz|DHeasy|Atserckcn|tyzy|yu88|nicky_mao|HHRhhr|xuanxuanmeow|andy|zzh111102|Lijiangjun4|Billhqh9|WA|shellyang2023|liuhuayang|郑梓淮|Tiger_Rory"/></td>
+				<td width="10%">题目难度：</td>
+				<td width="10%"><input type="text" name="lev" size="10" value="6"/></td>
+				<td width="10%">
+					<input type="submit" name="submit" value="提交" />
+					<input type="button" onclick="javascript:window.location.href='index.php'" value="返回"/>
+				</td>
+			</tr>
+
+					</tbody>
+	</table>
+	<table style="margin-top: 5px; width: 100%;"><tr><td width="10%">题目标签：<br/>（上限为10个）</td><td>
+		<table style="width: 500px;" id="taglist">
+			<tr>
+				<th width="80%">标签</th>
+				<th width="20%">操作</th>
+			</tr>
+			<tr>
+				<td><input style="width: 99%;" id="keyword" type="text" placeholder="输入关键字搜索" maxlength="50" oninput="searchTag();" autocomplete="off"/></td>
+				<td align="center"><a href="javascript:searchTag();">[搜索]</a></td>
+			</tr>
+			<tr style="margin-top: 5px">
+			<td align="center">
+				<select style="width: 100%;" id="search_result">
+				<option value="0" selected>无</option>
+				</select>
+			</td>
+				<td align="center"><a href="javascript:appendTag(+search_result.value);" id="buttonAppend">[添加]</a></td>
+			</tr>
+		</table>
+	</td></tr></table>
+	<table style="margin-top: 5px; width: 100%;">
+		<tbody>
+			<tr>
+				<td width="10%">时间限制：</td>
+				<td width="10%"><input type="text" name="timelimit" value="1000" maxlength="5" size="6" />&nbsp;MS</td>
+				<td width="10%">内存限制：</td>
+				<td width="10%"><input type="text" name="memorylimit" value="262144" maxlength="10" size="10" />&nbsp;KB</td>
+				<td width="30%" style="color: red; font-size: 12px">说明：这里的时间限制仅供参考，不对评测产生任何影响。</td>
+				<td width="8%">题目权限：</td>
+				<td width="7%"><input type="text" name="showmark" value="1" size="7" /></td>
+				<td width="8%">是否评测：</td>
+				<td width="7%"><input type="checkbox" name="judgemark" value="OK" checked/></td>
+			</tr>
+		</tbody>
+	</table>
+	<table style="margin-top: 5px; width: 100%;">
+		<tbody>
+			<tr>
+
+				<td width="10%">C/C++编译选项：</td>
+				<td width="40%">
+					<input type="text" name="cflags" value="" size="56">
+				</td>
+				<td width="10%">Pascal编译选项：</td>
+				<td width="40%">
+					<input type="text" name="pasflags" value="" size="56">
+				</td>
+			</tr>
+		</tbody>
+	</table>
+	<div class="problem-ae-cke">
+		<div class="problem-ae-cke-label">题目描述：<br /><br />注意：题目描述以及数据范围等用到数学公式的地方，请用TeX添加公式。</div>
+		<div class="problem-ae-cke-content"><textarea name="description" id="description" class="textarea-cke">&lt;p&gt;Heaplax有一颗 $N$ 个点的树，每个点上有一个权值 $p_i$ ，所有点的权值构成了一个 $0$ 到 $N-1$ 的排列。&lt;/p&gt;
+
+&lt;p&gt;Heaplax需要你执行 $M$ 个操作，操作类型有两种：&lt;/p&gt;
+
+&lt;p&gt;1. 对于两个点 $i$ 和 $j$ ，交换 $p_i$ 和 $p_j$ 。&lt;/p&gt;
+
+&lt;p&gt;2. 设 $L$ 为树上任意一条简单路径，$V(L)$ 为路径上权值的集合，输出当前 $MEX(V(L))$ 的最大值。定义函数 $MEX(S)$ 为最小的不在 $S$ 集合中的自然数。&lt;/p&gt;
+</textarea></div>
+	</div>
+	<div class="problem-ae-cke">
+		<div class="problem-ae-cke-label">输入格式：</div>
+		<div class="problem-ae-cke-content"><textarea name="inputformat" id="inputformat" class="textarea-cke">&lt;p&gt;输入文件第一行包含一个正整数 $N$ 。&lt;/p&gt;
+
+&lt;p&gt;第二行 $N$ 个整数表示 $p_i$ 。&lt;/p&gt;
+
+&lt;p&gt;接下来 $N-1$ 行，每行两个整数 $i, j$ ，表示有一条 $i$ 到 $j$ 的边。&lt;/p&gt;
+
+&lt;p&gt;接下来一行一个整数 $M$ 。&lt;/p&gt;
+
+&lt;p&gt;接下来 $M$ 行，每一行一开始是一个整数 $t$ 。&lt;/p&gt;
+
+&lt;p&gt;1. $t=1$ 表示第一种操作，接下来两个整数 $i$ 和 $j$ 。&lt;/p&gt;
+
+&lt;p&gt;2. $t=2$ 表示第二种操作，你需要输出当前 $MEX(V(L))$ 的最大值。&lt;/p&gt;
+</textarea></div>
+	</div>
+	<div class="problem-ae-cke">
+		<div class="problem-ae-cke-label">输出格式：</div>
+		<div class="problem-ae-cke-content"><textarea name="outputformat" id="outputformat" class="textarea-cke">&lt;p&gt;对于每一个 $t=2$ ，输出一行答案。&lt;/p&gt;
+</textarea></div>
+	</div>
+	<div class="problem-ae-cke">
+		<div class="problem-ae-cke-label">样例数据：</div>
+		<div class="problem-ae-cke-content"><input type="button" onclick="addSample('', '', '');" value="增加一组样例"></div>
+	</div>
+	<div id='sampledata'></div>
+	<div class="problem-ae-cke">
+		<div class="problem-ae-cke-label">提示信息：</div>
+		<div class="problem-ae-cke-content"><textarea name="hint" id="hint" class="textarea-cke">&lt;p&gt;各子任务的分值与数据规模如下：&lt;/p&gt;
+
+&lt;p&gt;子任务 $1$ ($20$ 分)： $N \le 300$ ，$M \le 300$ 。&lt;/p&gt;
+
+&lt;p&gt;子任务 $2$ ($20$ 分)： $N \le 3000$ ，$M \le 3000$ 。&lt;/p&gt;
+
+&lt;p&gt;子任务 $3$ ($20$ 分)： 只有操作 $2$ 。&lt;/p&gt;
+
+&lt;p&gt;子任务 $4$ ($40$ 分)： $N \le 100000$ ，$M \le 100000$ 。&lt;/p&gt;
+</textarea></div>
+	</div>
+	<div class="problem-ae-cke">
+		<div class="problem-ae-cke-label">隐藏信息：<br /><br />注意：该内容在比赛中无法看到，所以可以在此填写双倍经验题等。</div>
+		<div class="problem-ae-cke-content"><textarea name="hiddenhint" id="hiddenhint" class="textarea-cke"></textarea></div>
+	</div>
+	<table style="margin-top: 5px; width: 100%;">
+		<tbody>
+			<tr>
+				<td width="10%">代码格式：</td>
+				<td width="90%">
+				    <div id="code_block">
+				    <textarea name="format" id="ca" style="width:100%"></textarea>
+				    </div>
+				</td>
+			</tr>
+		</tbody>
+	</table>
+	<table style="margin-top: 5px; width: 100%;">
+		<tbody>
+			<tr>
+				<td width="10%">数据文件：</td>
+				<td width="40%"><input type="file" name="datafile"/></td>
+				<td width="50%" style="color: red; font-size: 11px;">请参观FAQ，若修改数据请联系特殊管理员重测整题。</td>
+			</tr>
+		</tbody>
+	</table>
+    
+	<table style="margin-top: 5px; width: 100%;">
+		<tbody>
+			<tr>
+				<td width="15%">SpecialJudge：</td>
+				<td width="40%"><input type="checkbox" name="sj" value="1" >&nbsp;&nbsp;<input type="file" name="sjfile" size="18"/></td>
+				<td width="45%" style="color: red; font-size: 11px;">不填视为使用普通比较方式。</td>
+			</tr>
+		</tbody>
+	</table>
+	<div style="text-align: center; margin: 5px auto; width: 100%">
+		<input type="hidden" name="referer" value="index.php" />
+		<input type="submit" value="提交" name="submit"/>
+		<input type="button" onclick="javascript:window.location.href='index.php'" value="返回"/>
+	</div>
+	提示：代码格式是用于出非传统题的工具（留空表示未规定）。用以下宏定义可以轻松出交互题和提交答案题：<a href='javascript:$("formathint").show()'>显示提示</a>
+	<formathint><pre><span style='font-family:Courier New'>
+	<script>
+	    var caedit = CodeMirror.fromTextArea(document.getElementById("ca"), {
+        	lineNumbers: true,
+        	matchBrackets: true,
+        	indentWithTabs: true,
+        	indentUnit: 4,
+        	readOnly: false,
+        	mode: "text/x-c++src"
+        });
+        	</script>
+	<h2>交互题示例</h2>
+    #{PROBLEM_FORMAT_CODE_G++_BEGIN}
+    这里是 C++ 交互库的开头
+    #{PROBLEM_FORMAT_CODE_G++_END}
+    #{PROBLEM_FORMAT_CODE_GCC_BEGIN}
+    这里是 C 交互库的开头
+    #{PROBLEM_FORMAT_CODE_GCC_END}
+    #{PROBLEM_FORMAT_CODE_FPC_BEGIN}
+    这里是 Pas 交互库的开头
+    #{PROBLEM_FORMAT_CODE_FPC_END}
+    #{PROBLEM_FORMAT_USER_CODE}
+    （上面这句话将被替换为选手提交的代码）
+    #{PROBLEM_FORMAT_CODE_G++_BEGIN}
+    这里是 C++ 交互库的结尾
+    #{PROBLEM_FORMAT_CODE_G++_END}
+    #{PROBLEM_FORMAT_CODE_GCC_BEGIN}
+    这里是 C 交互库的结尾
+    #{PROBLEM_FORMAT_CODE_GCC_END}
+    #{PROBLEM_FORMAT_CODE_FPC_BEGIN}
+    这里是 Pas 交互库的结尾
+    #{PROBLEM_FORMAT_CODE_FPC_END}
+    
+    
+    
+    <h2>提交答案题示例</h2>
+    #{PROBLEM_FORMAT_CODE_G++_BEGIN}
+    #include &lt;cstdio&gt;
+    #{PROBLEM_FORMAT_REPLACE_BREAK}
+    // 这句话将代码中的换行换成 "\n" 字符
+    int main(){puts("#{PROBLEM_FORMAT_USER_CODE}");}
+    // 然后在 SPJ 里面判断部分分即可
+	</span></pre></formathint>
+</div>
+</form>
+</div>
+<script id="sampledata-template" type="text/html">
+<div>
+	<div class="problem-ae-cke">
+		<div class="problem-ae-cke-label">样例输入：</div>
+		<div class="problem-ae-cke-content"><textarea class="sampleinput" name="sampleinput[]" rows="8" cols="80"></textarea></div>
+	</div>
+	<div class="problem-ae-cke">
+		<div class="problem-ae-cke-label">样例输出：</div>
+		<div class="problem-ae-cke-content"><textarea class="sampleoutput" name="sampleoutput[]" rows="8" cols="80"></textarea></div>
+	</div>
+	<div class="problem-ae-cke">
+		<div class="problem-ae-cke-label">样例说明：</div>
+		<div class="problem-ae-cke-content"><textarea class="samplehint" name="samplehint[]"></textarea></div>
+	</div>
+	<div class="problem-ae-cke">
+		<div class="problem-ae-cke-label">增删样例：</div>
+		<div class="problem-ae-cke-content"><input type="button" onclick="addSampleBtn(this);" value="增加一组样例"><input type="button" onclick="delSampleBtn(this);" value="删除这组样例"></div>
+	</div>
+</div>
+</script>
+<script id="sampledata-old" type="text/json">
+[{"in":"6\r\n2 5 0 3 1 4\r\n1 2 \r\n1 3\r\n3 4\r\n3 5\r\n3 6\r\n3\r\n2\r\n1 6 3\r\n2\r\n","out":"3\r\n2\r\n"},{"in":"6\r\n5 2 1 4 3 0\r\n1 2\r\n1 3\r\n1 4\r\n3 5\r\n3 6\r\n9\r\n2\r\n1 5 3\r\n2\r\n1 6 1\r\n2\r\n1 4 2\r\n2\r\n1 1 6\r\n2\r\n","out":"3\r\n2\r\n4\r\n4\r\n2\r\n"}]</script>
+<script type="text/javascript">
+CKFinder.setupCKEditor(null, '/OnlineJudge/ckfinder/');
+$("textarea.textarea-cke").ckeditor({
+	language: 'zh-cn',
+	uiColor: '#8BB6FF',
+	mathJaxLib: '/OnlineJudge/mathjax/MathJax-2.6/MathJax.js?config=TeX-AMS-MML_HTMLorMML',
+	contentsCss: '/OnlineJudge/style.css'
+});
+
+function addSample(input, output, hint) {
+	var template = $('#sampledata-template').html();
+	var jqobj = $(template);
+	jqobj.find('.sampleinput').get(0).innerHTML=input;
+	jqobj.find('.sampleoutput').get(0).innerHTML=output;
+	jqobj.find('.samplehint').val(hint);
+	$('#sampledata').append(jqobj);
+	jqobj.find('.samplehint').ckeditor({
+		language: 'zh-cn',
+		uiColor: '#8BB6FF',
+		mathJaxLib: '/OnlineJudge/mathjax/MathJax-2.6/MathJax.js?config=TeX-AMS-MML_HTMLorMML',
+		contentsCss: '/OnlineJudge/style.css'
+	});
+}
+
+function addSampleBtn(cobj) {
+	var curnode = $(cobj.parentNode.parentNode.parentNode);
+	var template = $('#sampledata-template').html();
+	var jqobj = $(template);
+	curnode.after(jqobj);
+	jqobj.find('.samplehint').ckeditor({
+		language: 'zh-cn',
+		uiColor: '#8BB6FF',
+		mathJaxLib: '/OnlineJudge/mathjax/MathJax-2.6/MathJax.js?config=TeX-AMS-MML_HTMLorMML',
+		contentsCss: '/OnlineJudge/style.css'
+	});
+}
+
+function delSampleBtn(cobj) {
+	var curnode = cobj.parentNode.parentNode.parentNode;
+	curnode.parentNode.removeChild(curnode);
+}
+
+var oldData = JSON.parse($('#sampledata-old').html());
+for(cdt in oldData) {
+	addSample(oldData[cdt].in, oldData[cdt].out, (typeof(oldData[cdt].hint) != "undefined")?oldData[cdt].hint:"");
+}
+
+function collectSample() {
+	var res = new Array();
+	var i = 0;
+	$(".sampleinput").each(function() {
+		res[i] = new Object();
+		res[i].in = $(this).val();
+		i = i + 1;
+		});
+	i = 0;
+	$(".sampleoutput").each(function() {
+		res[i].out = $(this).val();
+		i = i + 1;
+		});
+	i = 0;
+	$(".samplehint").each(function() {
+		res[i].hint = $(this).val();
+		i = i + 1;
+		});
+	alert(JSON.stringify(res));
+}
+
+tags = new Set()
+rows = {}
+fullname_map = {"51": "二分","72": "二分-三分","71": "二分-倍增","146": "二分-整体二分","119": "交互题","1": "其它","69": "分治","70": "分治-cdq分治","105": "分治-点分治","95": "分治-线段树分治","106": "分治-边分治","3": "动态规划","143": "动态规划-划分","18": "动态规划-区间","120": "动态规划-区间-四边形不等式优化","23": "动态规划-坐标","58": "动态规划-多线程","20": "动态规划-序列","115": "动态规划-序列-斜率优化","85": "动态规划-数位","19": "动态规划-树型","121": "动态规划-概率及期望","21": "动态规划-状态压缩","100": "动态规划-状态压缩-插头DP","136": "动态规划-线头","16": "动态规划-背包","13": "图论","73": "图论-LCA","41": "图论-二分图","96": "图论-仙人掌","55": "图论-割与桥","132": "图论-割与桥-圆方树","44": "图论-图的遍历","125": "图论-图的遍历-欧拉回路","45": "图论-拓扑排序","117": "图论-支配树","47": "图论-最短路","40": "图论-最短路-差分约束","89": "图论-环套树","43": "图论-生成树","56": "图论-缩强连通分量","126": "图论-缩强连通分量-2-SAT","46": "图论-网络流","107": "图论-虚树","60": "图论-补图","42": "图论-连通性","14": "字符串","48": "字符串-kmp","93": "字符串-Manacher","77": "字符串-Trie","49": "字符串-后缀数组","108": "字符串-后缀数组-后缀平衡树","110": "字符串-后缀树","130": "字符串-扩展KMP","50": "字符串-自动机","97": "字符串-自动机-AC自动机","98": "字符串-自动机-后缀自动机","104": "字符串-自动机-回文自动机","116": "字符串-自动机-序列自动机","54": "小技巧","151": "小技巧-启发式合并","142": "小技巧-哈希","109": "小技巧-打表","122": "小技巧-精度问题","111": "小技巧-随机化","8": "排序","118": "提交答案题","11": "搜索","37": "搜索-启发式搜索","36": "搜索-广搜","38": "搜索-深搜","39": "搜索-综合应用","67": "搜索-记忆化搜索","10": "数学问题","84": "数学问题-微积分","101": "数学问题-快速卷积","102": "数学问题-快速卷积-FFT","103": "数学问题-快速卷积-FWT","61": "数学问题-快速幂","62": "数学问题-快速幂-矩阵快速幂","123": "数学问题-插值","34": "数学问题-数论","33": "数学问题-构造","59": "数学问题-筛法","145": "数学问题-筛法-min_25筛","127": "数学问题-筛法-杜教筛","128": "数学问题-筛法-洲阁筛","52": "数学问题-线性代数","137": "数学问题-线性代数-线性基","35": "数学问题-组合数学","32": "数学问题-组合数学-博弈论","113": "数学问题-组合数学-容斥原理","112": "数学问题-组合数学-概率期望","133": "数学问题-组合数学-生成函数","152": "数学问题-群论","9": "数据结构","86": "数据结构-Bitset","15": "数据结构-rmq","135": "数据结构-ST表","87": "数据结构-十字链表（舞蹈链）","27": "数据结构-哈希表","66": "数据结构-块状","147": "数据结构-块状-块状链表","99": "数据结构-块状-树分块","88": "数据结构-块状-莫队算法","25": "数据结构-堆","114": "数据结构-堆-可并堆","24": "数据结构-并查集","30": "数据结构-栈","29": "数据结构-树形","124": "数据结构-树形-KD树","144": "数据结构-树形-划分树","94": "数据结构-树形-动态树","90": "数据结构-树形-可持久化","92": "数据结构-树形-可持久化-可持久化线段树","76": "数据结构-树形-平衡树","140": "数据结构-树形-析合树","75": "数据结构-树形-树状数组","68": "数据结构-树形-树链剖分","153": "数据结构-树形-笛卡尔树","74": "数据结构-树形-线段树","131": "数据结构-树形-线段树-线段树合并","28": "数据结构-链表","26": "数据结构-队列","7": "枚举","2": "模拟","53": "计算几何","91": "计算几何-三角剖分","78": "计算几何-凸包","83": "计算几何-半平面交","81": "计算几何-向量的基本运算","80": "计算几何-扫描线","79": "计算几何-旋转卡壳","82": "计算几何-辛普森积分","12": "贪心","4": "递归","5": "递推","6": "高精度",}
+
+function removeTag(id)
+{
+	if (tags.size == 10)
+		buttonAppend.style.color = "blue"
+	tags.delete(id)
+	rows[id].remove()
+}
+
+function appendTag(id)
+{
+	if (!id || tags.has(id) || tags.size >= 10)
+		return
+	tags.add(id)
+	rows[id] = taglist.insertRow(taglist.rows.length)
+	rows[id].insertCell(0).innerHTML = fullname_map[id]
+	var td = rows[id].insertCell(1)
+	td.align = "center"
+	td.innerHTML = "<input type=\"hidden\" name=\"tags[]\" value=\"" + id + "\"/><a href=\"javascript:removeTag("+id+")\">[删除]</a>"
+	if (tags.size == 10)
+		buttonAppend.style.color = "grey"
+}
+
+function searchTag()
+{
+	search_result.innerHTML = ""
+	var opt0 = new Option()
+	opt0.value = 0
+	opt0.innerHTML = "无"
+	if (keyword.value == "")
+		search_result.appendChild(opt0)
+	var regex = new RegExp(keyword.value, 'i')
+	for (id in fullname_map) {
+		if (fullname_map[id].match(regex)) {
+			var opt = new Option()
+			opt.value = id
+			opt.innerHTML = fullname_map[id]
+			search_result.appendChild(opt)
+		}
+	}
+	if (search_result.innerHTML == "")
+		search_result.appendChild(opt0)
+}
+
+appendTag(73);
+appendTag(74);
+searchTag();
+
+</script>
+</div>
+    <div id="footer">
+        <div id="copyright">
+                Copyright &copy; 2010~2026 <a href="http://mrazy.org">MRain</a>, <a href="http://robotshell.org">Robot</a>, Sweetdum, <a href="http://magica.moe">Magica</a>, <a href="/OnlineJudge/../wiki/张哥哥语录">UFO</a>,  <a href="http://miskcoo.com">miskcoo</a>. All rights reserved.<br />
+                Thanks to <a href="http://upsuper.org">Upsuper</a>.<br />
+                Past maintainer: <a href="http://robotshell.org">Robot</a>, <a href="http://magica.moe">Magica</a>, <a href="/OnlineJudge/user_show.php?id=1199">Sweetdum</a>, <a href="/OnlineJudge/../wiki/张哥哥语录">UFO</a>, <a href="http://miskcoo.com">miskcoo</a>, <a href="/OnlineJudge/user_show.php?id=1275">immortal</a><a href="/OnlineJudge/../wiki/CJK语录">C</a><a href="javascript:alert('CJK好丧！……')">O</a>, <a href="/OnlineJudge/user_show.php?id=1595">981213</a>, <a href="/OnlineJudge/user_show.php?id=1770">zz<span hidden>AKQM</span>x</a>, <a href="https://www.steaunk.icu">Steaunk</a>.<br/>
+                Current maintainer: <a href="/OnlineJudge/user_show.php?id=1649">nealchen</a>.
+        </div>
+    </div>
+</body>
+</html>

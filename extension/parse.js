@@ -1,5 +1,6 @@
 // parse.js - HTML parsers
 var logger = require('./logger');
+var ac = require('./ac');
 var ea=String.fromCharCode(38,97,109,112,59);
 var el=String.fromCharCode(38,108,116,59);
 var eg=String.fromCharCode(38,103,116,59);
@@ -357,7 +358,7 @@ function parsePracticeProblem(html,b){
       meta.subCount=aclMatch[3];
     }
   }
-  logger.log('[DEBUG parsePracticeProblem] Parsed stats:', JSON.stringify({passRate:meta.passRate,acCount:meta.acCount,subCount:meta.subCount}));
+
   var tags=[];
   $('#tagslist table tr td').each(function(){
     var t=$(this).text();
@@ -366,67 +367,44 @@ function parsePracticeProblem(html,b){
   var sections={};
   var sectionsHtml={};
   var rawSamples={};
-  var contentFound=false;
-  $('h3.contenttitle').each(function(){
-    var st2=$(this).text();
-    if(!st2)return;
-    contentFound=true;
-    var nodes=$(this).nextUntil('h3.contenttitle');
-    if(/样例|Sample/i.test(st2)){
-      var preTexts=[];
-      var sampleParts=[];
-      // 遍历所有子节点，分离 <pre> 和普通文本
-      nodes.each(function(){
-        var e=$(this);
-        if(e.is('pre, pre.datafield')){
-          var txt=(e.text()||'').replace(/\r\n/g,'\n');
-          if(txt.trim()) preTexts.push(txt);
-          sampleParts.push('<div style="position:relative;margin:6px 0;"><pre style="background:#1e1e1e;color:#d4d4d4;padding:12px;border-radius:8px;font-family:Consolas,monospace;font-size:13px;overflow-x:auto;white-space:pre-wrap;">'+esc(txt)+'</pre><button class="copy-sample-btn" data-text="'+esc(txt)+'" style="position:absolute;top:8px;right:8px;padding:4px 10px;font-size:12px;border:1px solid #007acc;background:#007acc;color:#fff;border-radius:6px;cursor:pointer;">复制</button></div>');
-        }else{
-          if(e.is('script,style'))return;
-          if(e.is('div')&&e.find('a[href*="submit"],a[href*="discuss"],a[href*="solve"],a[href*="status"]').length>0)return;
-          if(e.is('a')&&(e.attr('href')||'').match(/submit|discuss|solve|status/))return;
-          var txt=e.text().trim();
-          if(txt) sampleParts.push('<p style="margin:4px 0;font-size:14px;color:#333;line-height:1.6">'+esc(txt)+'</p>');
+  // === 新方案：直接渲染原始 #content，不做节段式提取 ===
+  var cdiv = $('#content').clone();
+  // 移除已在 .cc 头部渲染的元数据，保留所有原始内容结构
+  cdiv.find('h2').remove(); // 标题（已在 .cc 渲染）
+  cdiv.find('p[align="center"]').remove(); // 时间限制/出题人（已在 .cc 渲染）
+  cdiv.find('style,#tagslist,#acl,#pagelist,#jumpbox').remove(); // 保留 script（原页面 toggle）
+  cdiv.find('table').removeAttr('border').removeAttr('cellpadding').removeAttr('cellspacing'); // 移除 HTML border 属性（原 OJ 有全局重置）
+  // 移除导航链接（题解/提交/状态/讨论等），保留内容链接
+  cdiv.find('a[href*="submit"],a[href*="solution"],a[href*="status"],a[href*="discuss"],input,button,a.btn').remove();
+  cdiv.find('a:contains("题解"),a:contains("讨论"),a:contains("提交"),a:contains("状态"),a:contains("Source")').remove();
+  cdiv.find('center:contains("状态"),center:contains("标签"),center:contains("题解"),center:contains("讨论")').remove();
+  var rawHtml = cdiv.html() || '';
+  // 原文中的切换表格自带 onclick 和 script，直接保留即可使用原始逻辑
+  if (rawHtml.trim()) {
+    sectionsHtml['题目描述'] = rawHtml;
+    sections['题目描述'] = cdiv.text().trim();
+  }
+  // 单独提取样例
+  $('h3.contenttitle').each(function() {
+    var st2 = $(this).text();
+    if (!st2) return;
+    if (/样例|Sample/i.test(st2)) {
+      var nodes = $(this).nextUntil('h3.contenttitle');
+      var preTexts = [];
+      nodes.each(function() {
+        var e = $(this);
+        if (e.is('pre, pre.datafield')) {
+          var txt = (e.text() || '').replace(/\r\n/g, '\n');
+          if (txt.trim()) preTexts.push(txt);
         }
       });
-      var s=preTexts.join('\n');
-      rawSamples[st2]=s;
-      var sampleHtml='<div style="margin:10px 0;">'+sampleParts.join('')+'</div>';
-      sections[st2]=sampleHtml;
-      sectionsHtml[st2]=sampleHtml;
-      return;
+      if (preTexts.length > 0) rawSamples[st2] = preTexts.join('\n');
     }
-    var htmlParts=[];
-    var textParts=[];
-    nodes.each(function(){
-      var e=$(this);
-      if(e.is('script,style'))return;
-      if(e.is('center')||(e.is('div')&&e.attr('style')&&e.attr('style').indexOf('text-align:center')>=0))return;
-      if(e.is('div')&&e.find('a[href*="submit"],a[href*="discuss"],a[href*="solve"],a[href*="status"]').length>0)return;
-      if(e.is('a')&&(e.attr('href')||'').match(/submit|discuss|solve|status/))return;
-      htmlParts.push($.html(this));
-      var t=e.text().trim();
-      if(t)textParts.push(t);
-    });
-    sectionsHtml[st2]=htmlParts.join('\n');
-    sections[st2]=textParts.join('\n');
   });
   function processDownloadLinks(html) {
     if (!html) return html;
     var downloadRegex = /下发文件加载\[(\/Onlinejudge\/[^\]]+)\]/gi;
     return html.replace(downloadRegex, '<a href="' + b + '$1" class="download-link" target="_blank">下载文件</a>');
-  }
-  if(!contentFound){
-    var allContent=$('#content').html()||'';
-    var contentDiv=$('#content').clone();
-    contentDiv.find('h2,p[style*="font-size"],#tagslist,#acl,script,#pagelist,#jumpbox,div[style*="text-align:center"],a[href*="submit"],a[href*="discuss"],a[href*="solution"],a[href*="status"]').remove();
-    contentDiv.find('input[type="button"],input[type="submit"],button,a.btn').remove();
-    var rawHtml=contentDiv.html()||'';
-    if(rawHtml.trim()){
-      sectionsHtml['题目描述']=rawHtml;
-      sections['题目描述']=contentDiv.text().trim();
-    }
   }
 
   function buildSamplesFromTitles(rawMap) {
@@ -524,20 +502,20 @@ function parseContestProblem(html,b){var $=require('cheerio').load(html);var h2=
  * 支持: status.php, status.php?test=xxx, status.php?command=raw, 以及带过滤器的页面
  */
 function parseStatusPage(html, baseUrl) {
-  logger.log('[DEBUG parseStatusPage] Starting parse...');
-  logger.log('[DEBUG parseStatusPage] HTML length:', html ? html.length : 0);
-  
+
+
+
   var $ = require('cheerio').load(html);
   var records = [];
 
   // 第一部分: 表格解析
   var statusTable = findStatusTable($);
-  logger.log('[DEBUG parseStatusPage] Status table found:', statusTable ? 'yes' : 'no');
-  
+
+
   if (statusTable) {
     var columnMap = parseStatusTableHeader($, statusTable);
-    logger.log('[DEBUG parseStatusPage] Column map:', JSON.stringify(columnMap));
-    
+
+
     var rowCount = 0;
     statusTable.find('tr').each(function(rowIndex) {
       if (rowIndex === 0) return;
@@ -547,25 +525,25 @@ function parseStatusPage(html, baseUrl) {
       rowCount++;
       var record = parseStatusTableRow($, row, columnMap, baseUrl);
       if (record) {
-        logger.log('[DEBUG parseStatusPage] Row', rowCount, 'parsed:', record.id, '-', record.user, '-', record.status);
+
         records.push(record);
       } else {
-        logger.log('[DEBUG parseStatusPage] Row', rowCount, 'skipped (null record)');
+
       }
     });
-    logger.log('[DEBUG parseStatusPage] Table parse result:', records.length, 'records');
+
   }
 
   // 第二部分: Raw 格式解析
   if (records.length === 0) {
-    logger.log('[DEBUG parseStatusPage] No table records, trying raw format...');
+
     records = parseStatusRawFormat($);
-    logger.log('[DEBUG parseStatusPage] Raw format parse result:', records.length, 'records');
+
   }
 
   // 第三部分: 分页信息
   var pagination = parseStatusPagination($);
-  logger.log('[DEBUG parseStatusPage] Pagination:', JSON.stringify(pagination));
+
 
   return {
     records: records,
@@ -632,7 +610,6 @@ function parseStatusTableRow($, row, columnMap, baseUrl) {
   var tds = row.find('td');
   if (tds.length < 6) return null;
 
-  logger.log('[DEBUG parseStatusTableRow] Total TDs: ' + tds.length);
   logger.logObj('[DEBUG parseStatusTableRow] Column map', columnMap);
 
   function getCell(idx, offset) {
@@ -642,7 +619,6 @@ function parseStatusTableRow($, row, columnMap, baseUrl) {
     var cell = tds.eq(actualIdx);
     var link = cell.find('a').first();
     var colspan = parseInt(cell.attr('colspan')) || 1;
-    logger.log('[DEBUG parseStatusTableRow] getCell idx=' + idx + ', offset=' + offset + ', actualIdx=' + actualIdx + ', colspan=' + colspan + ', text="' + cell.text().trim().slice(0, 30) + '"');
     return {
       text: cell.text().trim(),
       html: cell.html() || '',
@@ -691,7 +667,6 @@ function parseStatusTableRow($, row, columnMap, baseUrl) {
     // 单用户模式
     if (userCell.link) {
       var userHref = userCell.link.attr('href') || '';
-      logger.log('[DEBUG parseStatusTableRow] userHref: ' + userHref);
       var userIdMatch = userHref.match(/[?&]id=(\d+)/);
       if (userIdMatch) userId = userIdMatch[1];
     }
@@ -700,15 +675,13 @@ function parseStatusTableRow($, row, columnMap, baseUrl) {
     if(!userColor){var uh=userCell.html||'';var fcm=uh.match(/<font\s+[^>]*color\s*=\s*["']([^"']+)["']/i);if(fcm)userColor=fcm[1];}
     if(!userColor){var scm=userCell.html.match(/style\s*=\s*["'][^"']*color\s*:\s*([^;"']+)/i);if(scm)userColor=scm[1].trim();}
   }
-  logger.log('[DEBUG parseStatusTableRow] user: ' + user + ', userId: ' + userId + ', delegation: ' + (userDelegation ? userDelegation.length : 0));
 
 
   // 分数和状态
   var scoreCell = getCell(columnMap.score);
   var scoreColspan = scoreCell.colspan;
   
-  logger.log('[DEBUG parseStatusTableRow] Score cell colspan: ' + scoreColspan);
-  logger.log('[DEBUG parseStatusTableRow] Score cell html includes judging.gif: ' + scoreCell.html.includes('judging.gif'));
+
   
   // 检查是否正在评测（合并了分数/时间/内存列）
   var isRunning = false;
@@ -733,19 +706,16 @@ function parseStatusTableRow($, row, columnMap, baseUrl) {
     if (progressMatch) {
       score = progressMatch[1] + '/' + progressMatch[2];
     }
-    logger.log('[DEBUG parseStatusTableRow] IS RUNNING - status: ' + statusText + ', score: ' + score);
   } else {
     // 正常情况：分数列没有合并
     var scoreMatch = scoreCell.text.match(/\d+/);
     score = scoreMatch ? scoreMatch[0] : '0';
     statusText = extractStatusFromRow($, tds, columnMap, score);
     rawStatus = statusText;
-    logger.log('[DEBUG parseStatusTableRow] NOT RUNNING - status: ' + statusText + ', score: ' + score);
   }
 
   // 计算合并单元格造成的索引偏移
   var offset = scoreColspan > 1 ? (scoreColspan - 1) : 0;
-  logger.log('[DEBUG parseStatusTableRow] Offset: ' + offset);
 
   // 获取时间和内存（注意合并单元格的情况）
   var time = '';
@@ -758,7 +728,6 @@ function parseStatusTableRow($, row, columnMap, baseUrl) {
   // 特判：如果时间列包含编译错误相关文字，说明是 CE 记录
   var isCE = false;
   if (time && (time.includes('编译错误') || time.includes('Compile Error') || time.includes('CE'))) {
-    logger.log('[DEBUG parseStatusTableRow] DETECTED CE - time column contains: ' + time);
     statusText = 'Compile Error';
     rawStatus = 'Compile Error';
     isRunning = false;
@@ -774,7 +743,6 @@ function parseStatusTableRow($, row, columnMap, baseUrl) {
   var compilerCell = getCell(columnMap.compiler, offset + ceOffset);
   var submitTimeCell = getCell(columnMap.submitTime, offset + ceOffset);
 
-  logger.log('[DEBUG parseStatusTableRow] Final result - ID: ' + recordId + ', Problem: ' + problemId + ', User: ' + user + ', Status: ' + statusText + ', CodeLen: ' + codeLenCell.text + ', Compiler: ' + compilerCell.text + ', SubmitTime: ' + submitTimeCell.text);
 
   return {
     id: recordId,
@@ -1098,38 +1066,38 @@ function parseDetailCompileInfo($) {
 function parseProblemListPage(html,b){
   var $=require('cheerio').load(html);
   var problems=[];
-  logger.log('[DEBUG parseProblemListPage] Starting parse...');
-  logger.log('[DEBUG parseProblemListPage] HTML length:', html ? html.length : 0);
+
+  
   
   var tablesFound = $('#content table#tablelist').length;
-  logger.log('[DEBUG parseProblemListPage] Tables found:', tablesFound);
+
   
   $('#content table#tablelist').each(function(){
     var h=$(this).find('th').first().text();
-    logger.log('[DEBUG parseProblemListPage] Table header:', h);
+
     if(h!=='Mark'&&h!=='ID'&&!h.includes('题目')){
-      logger.log('[DEBUG parseProblemListPage] Skipping table with header:', h);
+
       return;
     }
     
     var markIdx=0,idIdx=1,titleIdx=2,rateIdx=3,levelIdx=4;
     $(this).find('tr').first().find('th').each(function(i){
       var th=$(this).text().trim();
-      logger.log('[DEBUG parseProblemListPage] Header['+i+']:', th);
+
       if(th==='Mark')markIdx=i;
       else if(th==='ID')idIdx=i;
       else if(th.includes('题目'))titleIdx=i;
       else if(th.includes('通过')||th.includes('率'))rateIdx=i;
       else if(th.includes('Level')||th.includes('难度'))levelIdx=i;
     });
-    logger.log('[DEBUG parseProblemListPage] Column indices - mark:', markIdx, 'id:', idIdx, 'title:', titleIdx, 'rate:', rateIdx, 'level:', levelIdx);
+
     
     var rowCount = 0;
     $(this).find('tr').each(function(){
       rowCount++;
       var tds=$(this).find('td');
       if(tds.length<5){
-        logger.log('[DEBUG parseProblemListPage] Row', rowCount, 'skipped - only', tds.length, 'tds');
+
         return;
       }
       
@@ -1138,14 +1106,14 @@ function parseProblemListPage(html,b){
       var markImg=markTd.find('img').first();
       if(markImg.length){
         var imgSrc=markImg.attr('src')||'';
-        logger.log('[DEBUG parseProblemListPage] Row', rowCount, 'Mark img src:', imgSrc);
+
         if(imgSrc.includes('ac.jpg'))mark='ac';
         else if(imgSrc.includes('ua.jpg'))mark='attempted';
       }
       if(!mark){
         var markContent=markTd.html()||'';
         var markText=markTd.text().trim();
-        logger.log('[DEBUG parseProblemListPage] Row', rowCount, 'Mark fallback - html:', markContent.substring(0, 100), ', text:', markText);
+
         if(markText.includes('AC')||markText.includes('✓')||markContent.includes('color:#2ea043')||markContent.includes('color:#008000'))mark='ac';
         else if(markText.includes('*')||markText.includes('●')||markContent.includes('color:#fa5a05')||markContent.includes('color:#ffc107'))mark='attempted';
       }
@@ -1155,8 +1123,7 @@ function parseProblemListPage(html,b){
       var nh=tds.eq(titleIdx).html()||'';
       var nt=nl.text();
       
-      logger.log('[DEBUG parseProblemListPage] Row', rowCount, '- id:', idText, 'title:', nt, 'mark:', mark);
-      logger.log('[DEBUG parseProblemListPage] Row', rowCount, 'title HTML:', nh.substring(0, 300));
+
       
       if(nt.includes('隐藏')||nh.includes('color:gray')){
         problems.push({id:idText,name:'题目被隐藏',isHidden:true,url:'',passRate:null,acCount:null,subCount:null,level:null,mark:mark});
@@ -1175,13 +1142,13 @@ function parseProblemListPage(html,b){
       var url = nl.attr('href')?b+'/OnlineJudge/'+nl.attr('href'):'';
       
       var problem = {id:idText,name:nt,permission:pm?pm[1]:null,url:url,passRate:pr,acCount:ac,subCount:sc,level:levelText,isHidden:false,mark:mark};
-      logger.log('[DEBUG parseProblemListPage] Row', rowCount, 'added:', JSON.stringify(problem));
+
       problems.push(problem);
     });
   });
   
-  logger.log('[DEBUG parseProblemListPage] Total problems parsed:', problems.length);
-  logger.log('[DEBUG parseProblemListPage] Problems with mark:', problems.filter(p => p.mark).length);
+
+  
   return{problems:problems,...extractPagination($)};
 }
 
@@ -1261,9 +1228,9 @@ function parseTagList(html, _b) {
     });
   }
 
-  logger.log('[DEBUG parseTagList] tags found:', tags.length);
+
   if (tags.length) {
-    logger.log('[DEBUG parseTagList] sample tags:', tags.slice(0, 5).map(function(t){return t.id+':'+t.name;}).join(', '));
+
   }
 
   // --- 从页面 JS 的 fullname_map = {"51": "二分", ...} 中补充子标签，保证标签全面 ---
@@ -1319,11 +1286,11 @@ function parseTagList(html, _b) {
           seenIds.add(String(idStr));
           tags.push({ id: String(idStr), name: tname });
         });
-        logger.log('[DEBUG parseTagList] after fullname_map merge, total tags:', tags.length);
+
       }
     }
   } catch (err) {
-    logger.log('[DEBUG parseTagList] fullname_map parse skip:', err.message);
+
   }
 
   return { tags: tags, ...extractPagination($) };
@@ -1752,16 +1719,50 @@ function parseProblemDiscussionPage(html,b,page){
 }
 
 function parseUserPage(html,b){
+  // ===== 快速行号提取（YZOJ 用户主页模板固定结构） =====
+  var _lines = html.split('\n');
+  var _L195=(_lines[194]||'').trim(); // <h2>...user_show.php?id=...
+  var _L210=(_lines[209]||'').trim(); // <td width="20%">真实姓名</td>
+  var _L215=(_lines[214]||'').trim(); // <td><a href="status.php?uid=">提交次数</a></td>
+  var _L222=(_lines[221]||'').trim(); // <td><a href="status.php?uid=&status=1">解决题数</a></td>
+  var _L226=(_lines[225]||'').trim(); // <td>学校</td>
+  var _L230=(_lines[229]||'').trim(); // <td>邮箱</td>
+  var _L239=(_lines[238]||'').trim(); // Morris.Area 折线图数据
+
+  var _userId_line='',_username_line='',_userColor_line='',_userHtml_line='';
+  if(_L195){
+    var _idM=_L195.match(/user_show\.php\?id=(\d+)/);
+    if(_idM)_userId_line=_idM[1];
+    var _aM=_L195.match(/<a[^>]*>([\s\S]*?)<\/a>/);
+    if(_aM){_username_line=_aM[1].replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/\(我\)/g,'').replace('（我）','').trim();_userHtml_line=_aM[1];}
+    var _cM=_L195.match(/style\s*=\s*["'][^"']*color\s*:\s*([^;"'\]>]+)/i);
+    if(_cM){
+      var _c=_cM[1].trim().replace(/[，。)\]}]+$/g,'').trim();
+      if(!/^#(000000|FFFFFF|FFF|000|888|999|AAA|BBB|CCC|DDD|EEE)$/i.test(_c)&&!/^(black|white|gray|grey|silver)$/i.test(_c)){_userColor_line=_c;if(/^[0-9a-fA-F]{6}$/.test(_userColor_line))_userColor_line='#'+_userColor_line;if(/^[0-9a-fA-F]{3}$/.test(_userColor_line))_userColor_line='#'+_userColor_line;}
+    }
+  }
+  var _realName_line='',_school_line='',_email_line='',_submissionCount_line=0,_solvedCount_line=0;
+  if(_L210){var _m=_L210.match(/<td[^>]*>([^<]*)<\/td>/);if(_m)_realName_line=_m[1].trim();}
+  if(_L215){var _m=_L215.match(/>(\d+)<\/a>/);if(_m)_submissionCount_line=parseInt(_m[1])||0;}
+  if(_L222){var _m=_L222.match(/>(\d+)<\/a>/);if(_m)_solvedCount_line=parseInt(_m[1])||0;}
+  if(_L226){var _m=_L226.match(/<td[^>]*>([^<]*)<\/td>/);if(_m)_school_line=_m[1].trim();}
+  if(_L230){var _m=_L230.match(/<td[^>]*>([^<]*)<\/td>/);if(_m)_email_line=_m[1].trim();}
+  var _activityData_line=[];
+  if(_L239){
+    var _dM=_L239.match(/data\s*:\s*(\[[\s\S]*?\])/);
+    if(_dM){try{var _r=_dM[1].replace(/(\{|\,)\s*([a-zA-Z_\-][a-zA-Z0-9_\-]*)\s*:/g,'$1"$2":').replace(/,\s*\]/g,']');var _p=JSON.parse(_r);if(Array.isArray(_p))_activityData_line=_p.slice(-12);}catch(_e){}}
+  }
+  var _lineOk = !!_username_line;
+
   var $=require('cheerio').load(html);
   var h2El=$('h2').first();
   var h2=h2El.text().trim();
-  var userIdMatch=h2.match(/id=(\d+)/);
-  var userId=userIdMatch?userIdMatch[1]:'';
-  var username='';
+  var userId=_userId_line||'';
+  var username=_username_line||'';
   var userLinkInH2=h2El.find('a[href*="user_show.php"]').first();
 
   // ===== 提取真实网页颜色代码 =====
-  var userColor='';
+  var userColor=_userColor_line||'';
   // 1) 优先 h2 里的用户链接的 inline style color
   function extractColorFromStyle(style){
     if(!style)return '';
@@ -1769,6 +1770,8 @@ function parseUserPage(html,b){
     if(!m)return '';
     return m[1].trim();
   }
+  // 如果行号未提取到颜色，执行完整 DOM 颜色提取
+  if (!userColor) {
   var candidateEls=[];
   if(userLinkInH2.length){
     candidateEls.push(userLinkInH2);
@@ -1831,6 +1834,7 @@ function parseUserPage(html,b){
     if(/^[0-9a-fA-F]{6}$/.test(userColor))userColor='#'+userColor;
     if(/^[0-9a-fA-F]{3}$/.test(userColor))userColor='#'+userColor;
   }
+  } // end if(!userColor) — 行号提取成功则跳过 cheerio 颜色查找
 
   // ===== 提取头图 =====
   var headerImgUrl='';
@@ -1856,82 +1860,114 @@ function parseUserPage(html,b){
   // 兜底：如果 ojserver 有 header_image_url 字段会在 merge 时覆盖，这里不用再兜底
 
   var honorTitles=['超级大神犇','大神犇','大神','中犇','小犇','超级大研究员','大研究员','研究员','职业程序员','专家','远程家','程序员','初学者','学习者','Master','Grandmaster','Expert','Specialist','Pupil','Newbie','Legend','Candidate'];
+  var _honorAc = ac.build(honorTitles);
   function _stripHonorTitles(s){
     var r=s||'';
-    for(var hi=0;hi<honorTitles.length;hi++)if(r.indexOf(honorTitles[hi])>=0)r=r.split(honorTitles[hi]).join('');
+    if (_honorAc && ac.test(r, _honorAc)) {
+      var matches = ac.match(r, _honorAc);
+      for (var hi = matches.length - 1; hi >= 0; hi--) {
+        r = r.split(honorTitles[matches[hi]]).join('');
+      }
+    }
     return r.replace(/^\s*-\s*/,'').replace(/\s*-\s*$/,'').trim();
   }
 
-  var userHtml='';
-  if(userLinkInH2.length){
-    username=_stripHonorTitles(userLinkInH2.text().replace(/\(我\)/g,'').replace('（我）','')).trim();
-    userHtml=userLinkInH2.html()||'';
-    if(!userId){
-      var href=userLinkInH2.attr('href')||'';
-      var uidM=href.match(/[?&]id=(\d+)/);
-      if(uidM)userId=uidM[1];
-    }
-  }
-  if(!username){
-    var allUserLinks=$('#content a[href*="user_show.php"]');
-    if(!allUserLinks.length)allUserLinks=$('body a[href*="user_show.php"]');
-    for(var i=0;i<allUserLinks.length;i++){
-      var linkEl=$(allUserLinks[i]);
-      if(linkEl.closest('footer, #footer, .footer, .foot, .copyright, .contrib, #foot, [id*="footer"], [class*="footer"], [class*="copyright"], [id*="contrib"], [class*="contrib"]').length)continue;
-      var linkText=_stripHonorTitles(linkEl.text().replace(/\(我\)/g,'').replace('（我）','')).trim();
-      if(linkText&&linkText.length>=2&&!honorTitles.includes(linkText)&&!/^\d+$/.test(linkText)){
-        username=linkText;
-        if(!userHtml)userHtml=linkEl.html()||'';
-        break;
+  var userHtml=_userHtml_line||'';
+  if (!_lineOk) {
+    if(userLinkInH2.length){
+      username=_stripHonorTitles(userLinkInH2.text().replace(/\(我\)/g,'').replace('（我）','')).trim();
+      userHtml=userLinkInH2.html()||'';
+      if(!userId){
+        var href=userLinkInH2.attr('href')||'';
+        var uidM=href.match(/[?&]id=(\d+)/);
+        if(uidM)userId=uidM[1];
       }
     }
-  }
-  if(!username||honorTitles.includes(username)){
-    var h2Html=h2El.html()||'';
-    var strongMatch=h2Html.match(/<strong[^>]*>([^<]+)<\/strong>/g)||[];
-    for(var si=0;si<strongMatch.length;si++){
-      var m=strongMatch[si].match(/<strong[^>]*>([^<]+)<\/strong>/);
-      if(m){
-        var possibleName=m[1].trim();
-        if(!honorTitles.includes(possibleName)&&possibleName.length>=2){
-          username=possibleName;
+    if(!username){
+      var allUserLinks=$('#content a[href*="user_show.php"]');
+      if(!allUserLinks.length)allUserLinks=$('body a[href*="user_show.php"]');
+      for(var i=0;i<allUserLinks.length;i++){
+        var linkEl=$(allUserLinks[i]);
+        if(linkEl.closest('footer, #footer, .footer, .foot, .copyright, .contrib, #foot, [id*="footer"], [class*="footer"], [class*="copyright"], [id*="contrib"], [class*="contrib"]').length)continue;
+        var linkText=_stripHonorTitles(linkEl.text().replace(/\(我\)/g,'').replace('（我）','')).trim();
+        if(linkText&&linkText.length>=2&&!honorTitles.includes(linkText)){
+          username=linkText;
+          if(!userHtml)userHtml=linkEl.html()||'';
           break;
         }
       }
     }
     if(!username||honorTitles.includes(username)){
-      var text=h2.replace(/id=\d+/g,'').trim();
-      text=text.replace(/\([^)]*\)/g,'').replace(/\[[^\]]*\]/g,'').trim();
-      text=text.replace(/[-&nbsp;\s\u00A0\u3000]+/g,' ').trim();
-      var parts=text.split(/\s+/).filter(function(p){return p.length>0;});
-      for(var pi=0;pi<parts.length;pi++){
-        var part=parts[pi].trim();
-        if(honorTitles.includes(part))continue;
-        if(/^\d+$/.test(part))continue;
-        if(part.length<2)continue;
-        username=part;
-        break;
-      }
-      if((!username||honorTitles.includes(username))&&parts.length>0){
-        for(var pi2=parts.length-1;pi2>=0;pi2--){
-          var part2=parts[pi2].trim();
-          if(!honorTitles.includes(part2)&&!/^\d+$/.test(part2)&&part2.length>=2){
-            username=part2;
+      var h2Html=h2El.html()||'';
+      var strongMatch=h2Html.match(/<strong[^>]*>([^<]+)<\/strong>/g)||[];
+      for(var si=0;si<strongMatch.length;si++){
+        var m=strongMatch[si].match(/<strong[^>]*>([^<]+)<\/strong>/);
+        if(m){
+          var possibleName=m[1].trim();
+          if(!honorTitles.includes(possibleName)&&possibleName.length>=2){
+            username=possibleName;
             break;
+          }
+        }
+      }
+      if(!username||honorTitles.includes(username)){
+        var text=h2.replace(/id=\d+/g,'').trim();
+        text=text.replace(/\([^)]*\)/g,'').replace(/\[[^\]]*\]/g,'').trim();
+        text=text.replace(/[-&nbsp;\s\u00A0\u3000]+/g,' ').trim();
+        var parts=text.split(/\s+/).filter(function(p){return p.length>0;});
+        for(var pi=0;pi<parts.length;pi++){
+          var part=parts[pi].trim();
+          if(honorTitles.includes(part))continue;
+          // 不跳过纯数字（可能是手机号用户名），但跳过明显是 UID 的短数字（≤4位且不等于整体文本）
+          if(/^\d{1,4}$/.test(part)&&part!==text.replace(/\s/g,''))continue;
+          if(part.length<2)continue;
+          username=part;
+          break;
+        }
+        if((!username||honorTitles.includes(username))&&parts.length>0){
+          for(var pi2=parts.length-1;pi2>=0;pi2--){
+            var part2=parts[pi2].trim();
+            if(!honorTitles.includes(part2)&&!/^\d{1,4}$/.test(part2)&&part2.length>=2){
+              username=part2;
+              break;
+            }
+          }
+          // 最后兜底：如果所有部分都是纯数字且没有提取到用户名，取最长的数字片段
+          if(!username||honorTitles.includes(username)){
+            var longest='';
+            for(var pi3=0;pi3<parts.length;pi3++){
+              var p3=parts[pi3].trim();
+              if(p3.length>longest.length&&!/^[A-Za-z]+$/.test(p3)){
+                longest=p3;
+              }
+            }
+            if(longest)username=longest;
           }
         }
       }
     }
   }
-  var realName='',school='',email='',signature='',solvedCount=0,submissionCount=0,rank='';
+  var realName=_realName_line||'',school=_school_line||'',email=_email_line||'',signature='',solvedCount=_solvedCount_line||0,submissionCount=_submissionCount_line||0,rank='';
+  var fullText=$('body').text()||'';
+  var fullHtml=$('html').text()||'';
   // 封禁用户检测：YZOJ 被封禁用户通常在页面会有明确关键字
   // 没有 username 或 uid 且页面含有 封禁/禁用/注销/不存在/无法查看 等关键字，才认为是封禁用户
   var isBanned=false;
-  var fullText=$('body').text()||'';
-  var fullHtml=$('html').text()||'';
+  // 优先检测 "用户不存在" / "用户未找到" 的独立页面（不含用户数据）
+  if(/用户不存在/.test(fullHtml)||/用户未找到/.test(fullHtml)||/不存在该用户/.test(fullHtml)){
+    // 检查是否真的没解析到用户数据（说明是纯错误页面）
+    if(!username&&!userId){return null;}
+  }
   // 移除"未登录"，因为很多页面都可能包含这个词，不应该作为封禁判断依据
-  var banKeywords=['封禁','禁用','注销','不存在','该用户已','账户已','账号已','无法查看','无权限查看','访问受限'];
-  for(var ki=0;ki<banKeywords.length;ki++){if(fullText.includes(banKeywords[ki])||fullHtml.includes(banKeywords[ki])){isBanned=true;break;}}
+  var banKeywords=['封禁','禁用','注销','该用户已','账户已','账号已','无法查看','无权限查看','访问受限'];
+  var _banAc = ac.build(banKeywords);
+  // 排除 "不存在" 在第一轮检查，后面单独处理
+  if (_banAc && (ac.test(fullText, _banAc) || ac.test(fullHtml, _banAc))) { isBanned = true; }
+  // 独立检查 "不存在"：只在主要内容区域中出现时才触发
+  if(!isBanned){
+    var contentText=$('#content').text()||'';
+    if(contentText.includes('不存在')){isBanned=true;}
+  }
   // 如果已经解析到用户名或用户ID，说明用户正常存在，不应判定为封禁
   if(isBanned&&(username||userId)){isBanned=false;}
   // 如果 h2 中找不到 user_show 链接，且整个页面也找不到 user_show 链接（登录状态下的用户页一般不应该），也视为异常状态
@@ -1994,13 +2030,26 @@ function parseUserPage(html,b){
       }
     });
   }
+  // ===== 用户组/权限判断封禁：用户组值为负数则为封禁 =====
+  if(!isBanned){
+    for(var ri=0;ri<infoRows.length;ri++){
+      if(/用户组|权限|身份/.test(infoRows[ri].label)){
+        var permVal=infoRows[ri].value.replace(/[Lv.]/g,'').trim();
+        var permNum=parseInt(permVal);
+        if(!isNaN(permNum)&&permNum<0){
+          isBanned=true;
+        }
+        break;
+      }
+    }
+  }
   // ===== 解析"已解决题目列表" =====
-  // YZOJ 通常有两种结构：a) 单独的 #acl div b) 另一个独立表格包含大量 problem_show 链接
+  // YZOJ 通常有两种结构：a) 单独的#acl div b) 另一个独立表格包含大量problem_show链接
   var solvedArea=null;
   var aclDiv=$('#acl');
   if(aclDiv.length){solvedArea=aclDiv;}
   else{
-    // 找包含 problem_show 链接最多的表格，且不是 infoTable（infoTable 中 solved 很少）
+    // 找包含problem_show链接最多的表格，且不是 infoTable（infoTable 中 solved 很少）
     var infoId=infoTable?infoTable.attr('id')+'_'+infoTable.find('tr').length:'';
     var best=null;var bestCount=-1;
     $('table').each(function(){
@@ -2066,7 +2115,7 @@ function parseUserPage(html,b){
         try{
           var rawStr=scriptContent.substring(dataStart+6, dataEnd+1);
           var jsonStr=rawStr.replace(/(\{|\,)\s*([a-zA-Z_\-][a-zA-Z0-9_\-]*)\s*:/g, '$1"$2":').replace(/,\s*\]/g, ']');
-          activityData=JSON.parse(jsonStr);
+          activityData=JSON.parse(jsonStr).slice(-12);
         }catch(e){}
       }
     }
@@ -2289,7 +2338,7 @@ function parseRanklist(html, baseUrl, requestedPage) {
     if(!style)return '';
     var m=style.match(/color\s*:\s*([^;!"'`<>]+)/i);
     if(!m)return '';
-    var c=m[1].trim().replace(/[，。)\]}]+$/g,'').trim();
+    var c=m[1].trim().replace(/[,，。\]}]+$/g,'').trim();
     if(c&&/^[0-9a-fA-F]{6}$/.test(c))c='#'+c;
     if(c&&/^[0-9a-fA-F]{3}$/.test(c))c='#'+c;
     return c;
@@ -2439,7 +2488,7 @@ function parseRanklist(html, baseUrl, requestedPage) {
       var colMatch;
       while((colMatch=colPat.exec(userCell.html))!==null){
         if(colMatch[1]){
-          var candCol=colMatch[1].replace(/[,，。)\]}]+$/g,'').trim();
+          var candCol=colMatch[1].replace(/[,，。\]}]+$/g,'').trim();
           if(/^#[0-9a-fA-F]{3,8}$|^[a-zA-Z]{3,20}$|^rgb/.test(candCol)||/^[0-9a-fA-F]{6}$/.test(candCol)){
             if(/^[0-9a-fA-F]{6}$/.test(candCol))candCol='#'+candCol;
             if(/^[0-9a-fA-F]{3}$/.test(candCol))candCol='#'+candCol;
@@ -2518,7 +2567,7 @@ function parseRanklist(html, baseUrl, requestedPage) {
 function parseProblemPassStatus(html) {
   var $ = require('cheerio').load(html);
   var mark = '';
-  // 找所有包含"状态："的文本块 / td / div / 中心表
+  // 找所有包含"状态："的文本块 / td / div / 中心块
   // 模式 1: <td>状态：<a href="status_details.php?id=xx"><span style="color:green">已通过</span></a></td>
   // 查找所有含"状态："的元素，取文本最短的（最内层/最具体），避免匹配到外层大容器
   var statusCells = $('td, div, center, p').filter(function() {
@@ -2552,17 +2601,17 @@ function parseProblemPassStatus(html) {
     // 只保留"标签"之前的状态值，去除同一容器中其他字段的干扰
     cleanStatus = cleanStatus.split(/[：:]\s*标签/)[0].trim();
     // 优先检测"未提交"/"尚未尝试"
-    if (/^未提交$/.test(cleanStatus) || /尚未尝试|未尝试/.test(cleanStatus)) {
+    if (/^未提交/.test(cleanStatus) || /尚未尝试|未尝试/.test(cleanStatus)) {
       mark = '';
     } else if (/未通过/.test(statusText)) {
       mark = 'attempted';
     } else if (/已通过|Accept|正确通过/.test(statusText)) {
       mark = 'ac';
-    } else if (/错误答案|Wrong|TimeLimit|MemoryLimit|Runtime|OutputLimit|Compile|Presentation|运行时|超时|超内存|未提交过/.test(statusText)) {
+    } else if (/错误答案|Wrong|TimeLimit|MemoryLimit|Runtime|OutputLimit|Compile|Presentation|运行超时|超内存|未提交过/.test(statusText)) {
       mark = 'attempted';
     } else if (/^通过$/.test(cleanStatus)) {
       mark = 'ac';
-    } else if (/[未无]提交|未做题/.test(statusText)) {
+    } else if (/[无未]提交|未做题/.test(statusText)) {
       mark = '';
     } else if (statusHtml && /color\s*:\s*green/i.test(statusHtml)) {
       mark = 'ac';

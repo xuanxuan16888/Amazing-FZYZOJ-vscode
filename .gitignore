@@ -1,0 +1,9 @@
+extension/node_modules
+node_modules/
+ojserver/
+run.bat
+test.bat
+package.cmd
+.eslintrc.json
+.vscode
+.trae/
