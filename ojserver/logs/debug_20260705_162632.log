@@ -1,0 +1,16 @@
+=== DEBUG LOG [user_login_result] ===
+Source: login result
+Timestamp: 2026-07-05T16:26:32.190923
+
+=== CONTENT ===
+Extracted - uid: 2940, username: yu88, color: #F5690E, permission: 4
+
+=== PARSED DATA ===
+{
+  "yzoj_uid": "2940",
+  "yzoj_username": "yu88",
+  "yzoj_user_color": "#F5690E",
+  "yzoj_permission_level": 4,
+  "is_admin": false
+}
+

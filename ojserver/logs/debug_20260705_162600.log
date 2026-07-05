@@ -1,0 +1,51 @@
+=== DEBUG LOG [profile_full_result] ===
+Source: API result
+Timestamp: 2026-07-05T16:26:00.335271
+
+=== CONTENT ===
+Returning profile for uid=2940, username=yu88
+
+=== PARSED DATA ===
+{
+  "id": "2940",
+  "uid": "2940",
+  "username": "yu88",
+  "username_html": "",
+  "nickname": "林展羽",
+  "realName": "林展羽",
+  "real_name": "林展羽",
+  "school": "",
+  "email": "",
+  "signature": "区",
+  "bio": "# 哦天哪yxx大人\n\n",
+  "bio_html": "# 哦天哪yxx大人<br><br>",
+  "avatar_url": "http://ltw.frp.one:44198/media/2940/avatar.png",
+  "avatarUrl": "http://ltw.frp.one:44198/media/2940/avatar.png",
+  "header_image_url": "http://ltw.frp.one:44198/media/2940/header.png",
+  "solvedCount": 579,
+  "solved_count": 579,
+  "submissionCount": 879,
+  "submission_count": 879,
+  "passRatePercent": 65.9,
+  "rank": "",
+  "is_banned": false,
+  "isBanned": false,
+  "tags": [
+    {
+      "text": "展羽哥哥~",
+      "tag": "展羽哥哥~",
+      "color": "#00fbff"
+    }
+  ],
+  "solvedProblems": [],
+  "activityData": [],
+  "heatmapData": [],
+  "color": "",
+  "user_color": "",
+  "permission_level": 0,
+  "permission_color": "",
+  "last_crawled": "2026-07-05T16:26:00.327786",
+  "session_expired": true,
+  "exists_in_ojs": true
+}
+

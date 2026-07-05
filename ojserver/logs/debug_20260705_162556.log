@@ -1,0 +1,20 @@
+=== DEBUG LOG [user_check] ===
+Source: user_check
+Timestamp: 2026-07-05T16:25:56.377320
+
+=== CONTENT ===
+Session found: True
+
+=== PARSED DATA ===
+{
+  "token": "e1cb53f236780e6d6209668bc4ec8a127b82641f939d2933bdaced19090cb8c1",
+  "yzoj_cookie": "27dlp2rddckl3nf9cnj0l14osu",
+  "yzoj_uid": "2940",
+  "yzoj_username": "yu88",
+  "is_admin": 0,
+  "created_at": "2026-07-03 11:27:28",
+  "last_active": "2026-07-03 11:38:48",
+  "yzoj_user_color": "#F5690E",
+  "yzoj_permission_level": "4"
+}
+

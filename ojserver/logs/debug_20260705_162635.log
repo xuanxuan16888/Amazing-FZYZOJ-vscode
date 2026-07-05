@@ -1,0 +1,20 @@
+=== DEBUG LOG [get_user_session_result] ===
+Source: validate_user_session
+Timestamp: 2026-07-05T16:26:35.053486
+
+=== CONTENT ===
+Session validated: True
+
+=== PARSED DATA ===
+{
+  "token": "0fe921352be74733a35fa365894a6027c5839c0327cff159935e84631684131b",
+  "yzoj_cookie": "cuqbkd5a649uqk0gh6rdvg12nv",
+  "yzoj_uid": "2940",
+  "yzoj_username": "yu88",
+  "is_admin": 0,
+  "created_at": "2026-07-05 08:26:32",
+  "last_active": "2026-07-05 08:26:34",
+  "yzoj_user_color": "#F5690E",
+  "yzoj_permission_level": "4"
+}
+

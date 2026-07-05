@@ -6,24 +6,11 @@
     "repository": "https://github.com/xuanxuan16888/Amazing-FZYZOJ-vscode.git",
     "description": "YZOJ VSCode Extension",
     "icon": "favicon.ico",
-    "main": "./extension/extension.js",
+    "main": "./dist/extension.js",
     "engines": {
         "vscode": "^1.80.0"
     },
     "activationEvents": [
-        "onCommand:yzoj.login",
-        "onCommand:yzoj.showScheduledContests",
-        "onCommand:yzoj.showActiveContests",
-        "onCommand:yzoj.showPastContests",
-        "onCommand:yzoj.openContestDetail",
-        "onCommand:yzoj.openProblemDetail",
-        "onCommand:yzoj.submitCode",
-        "onCommand:yzoj.showProblemSetList",
-        "onCommand:yzoj.openProblemSetDetail",
-        "onCommand:yzoj.showRanklist",
-        "onCommand:yzoj.showDiscussionList",
-        "onCommand:yzoj.openDiscussionDetail",
-        "onCommand:yzoj.showStatusList"
     ],
     "contributes": {
         "viewsContainers": {
@@ -162,6 +149,14 @@
     "devDependencies": {
         "@typescript-eslint/eslint-plugin": "^8.62.1",
         "@typescript-eslint/parser": "^8.62.1",
-        "eslint": "^10.6.0"
+        "esbuild": "^0.28.1",
+        "eslint": "^10.6.0",
+        "npm-run-all": "^4.1.5"
+    },
+    "scripts": {
+        "compile": "node esbuild.js",
+        "watch": "node esbuild.js --watch",
+        "vscode:prepublish": "npm run package",
+        "package": "node esbuild.js --production"
     }
 }

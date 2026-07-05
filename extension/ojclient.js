@@ -20,6 +20,13 @@ function _getAgent(url) {
   return url.startsWith('https') ? _httpsAgent : _httpAgent;
 }
 
+// 创建超时信号（兼容 node-fetch v2 的 instanceof 检查）
+function signalTimeout(ms) {
+  var ctrl = new AbortController();
+  setTimeout(function() { ctrl.abort(); }, ms);
+  return ctrl.signal;
+}
+
 // ==================== 响应缓存 ====================
 var _responseCache = {};
 var _cacheTTL = 5000; // 默认 5 秒缓存（短 TTL 避免数据过时）
@@ -122,7 +129,7 @@ async function login(username, password) {
       body: formData.toString(),
       redirect: 'manual',
       agent: _getAgent(LOGIN_API),
-      signal: AbortSignal.timeout(10000)
+      signal: signalTimeout(10000)
     });
     
     const setCookie = response.headers.get('set-cookie');
@@ -171,7 +178,7 @@ async function checkStatus(cookie) {
         'User-Agent': 'Mozilla/5.0 (VS Code Extension)'
       },
       agent: _getAgent(url),
-      signal: AbortSignal.timeout(8000)
+      signal: signalTimeout(8000)
     });
     
     const buffer = await response.buffer();
@@ -197,7 +204,45 @@ async function checkStatus(cookie) {
 }
 
 /**
- * 3. 获取网页源码（通用，带缓存+keep-alive+并发控制）
+ * 获取真实浏览器 User-Agent
+ */
+function _browserUA() {
+  return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36 Edg/150.0.0.0';
+}
+
+/**
+ * 获取浏览器风格请求头
+ */
+function _browserHeaders(url, cookie) {
+  var headers = {
+    'User-Agent': _browserUA(),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+    'Accept-Encoding': 'gzip, deflate, br, zstd',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
+    'Cache-Control': 'max-age=0',
+    'Priority': 'u=0, i',
+    'sec-ch-ua': '"Not;A=Brand";v="8", "Chromium";v="150", "Microsoft Edge";v="150"',
+    'sec-ch-ua-mobile': '?0',
+    'sec-ch-ua-platform': '"Windows"',
+    'sec-fetch-dest': 'document',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'same-origin',
+    'sec-fetch-user': '?1',
+    'upgrade-insecure-requests': '1'
+  };
+  if (url) {
+    headers['Referer'] = url;
+    try {
+      var u = new URL(url);
+      headers['Origin'] = u.protocol + '//' + u.host;
+    } catch(_) { /* ignore */ }
+  }
+  if (cookie) headers['Cookie'] = cookie;
+  return headers;
+}
+
+/**
+ * 3. 获取网页源码（通用 GET，带缓存+keep-alive+并发控制+浏览器风格请求头）
  */
 async function gethtml(url, cookie) {
   try {
@@ -205,13 +250,10 @@ async function gethtml(url, cookie) {
     var cached = _cacheGet(url, cookie);
     if (cached) return cached;
     
-    const headers = { 'User-Agent': 'Mozilla/5.0 (VS Code Extension)' };
-    if (cookie) headers['Cookie'] = cookie;
-    
     const response = await _limitedFetch(url, {
-      headers,
+      headers: _browserHeaders(url, cookie),
       agent: _getAgent(url),
-      signal: AbortSignal.timeout(10000)
+      signal: signalTimeout(15000)
     });
     
     let text;
@@ -226,6 +268,55 @@ async function gethtml(url, cookie) {
     _cacheSet(url, cookie, text);
     return text;
   } catch (error) {
+    throw error;
+  }
+}
+
+/**
+ * 3b. POST 获取网页源码（与 gethtml 类似但用 POST 方法 + 可带 body）
+ * 注意：使用 redirect:'manual' 避免服务器返回 DCxxxx 重定向时静默跟随
+ */
+async function posthtml(url, cookie, body) {
+  try {
+    var headers = _browserHeaders(url, cookie);
+    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    
+    console.log('[Discuss] posthtml URL:', url);
+    console.log('[Discuss] posthtml body:', body ? body.substring(0, 500) : '(empty)');
+    console.log('[Discuss] posthtml Content-Type:', headers['Content-Type']);
+    console.log('[Discuss] posthtml Accept-Encoding:', headers['Accept-Encoding']);
+    
+    const response = await _limitedFetch(url, {
+      method: 'POST',
+      headers: headers,
+      body: body || '',
+      redirect: 'manual',
+      agent: _getAgent(url),
+      signal: signalTimeout(15000)
+    });
+    
+    console.log('[Discuss] posthtml response status:', response.status, response.statusText);
+    console.log('[Discuss] posthtml response headers:', JSON.stringify([...response.headers.entries()]));
+
+    // 如果服务器返回重定向（3xx），说明请求被拒绝（DCxxxx），抛异常
+    if (response.status >= 300 && response.status < 400) {
+      var location = response.headers.get('location') || '(none)';
+      console.log('[Discuss] REDIRECT detected to:', location);
+      throw new Error('请求被重定向到 ' + location + '（状态码 ' + response.status + '），可能缺少必要请求头或 Cookie 已过期');
+    }
+    
+    let text;
+    if (typeof response.text === 'function') {
+      text = await response.text();
+    } else {
+      const buffer = await response.buffer();
+      text = iconv.decode(buffer, 'utf8');
+    }
+    console.log('[Discuss] posthtml response length:', text.length);
+    console.log('[Discuss] posthtml response preview:', text.substring(0, 300));
+    return text;
+  } catch (error) {
+    console.log('[Discuss] posthtml ERROR:', error.message);
     throw error;
   }
 }
@@ -468,4 +559,4 @@ function clearCache() {
   _responseCache = {};
 }
 
-module.exports = { login, checkStatus, gethtml, getContestInfo, getContestProblemGlobalPids, clearCache };
+module.exports = { login, checkStatus, gethtml, posthtml, getContestInfo, getContestProblemGlobalPids, clearCache, signalTimeout };

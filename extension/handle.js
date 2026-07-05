@@ -5,6 +5,8 @@ const fsAsync = require('fs').promises;
 const path = require('path');
 const fetch = require('node-fetch'); // 🔑 统一使用 node-fetch
 const FormData = require('form-data');
+const { parsePracticeProblem } = require('./parse');
+const { gethtml } = require('./ojclient');
 
 const MAP_FILE = '.yzoj-problem-map.json';
 
@@ -149,9 +151,9 @@ async function periodicCheckAllMaps(context, yzoj_url, globalCookie) {
 }
 
 /**
- * 📁 创建比赛文件夹 + 自动绑定映射
+ * 📁 创建比赛文件夹 + 自动绑定映射 + CPH 绑定（含样例）
  */
-async function handleCreateContestFolder(msg, context) {
+async function handleCreateContestFolder(msg, context, yzoj_url, globalCookie) {
   const ws = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
   if (!ws) return vscode.window.showErrorMessage('❌ 请先打开工作区');
 
@@ -220,6 +222,100 @@ int main() {
   }
   await saveMap(map);
   vscode.window.showInformationMessage(`✅ 已创建 ${msg.problems.length} 题并绑定映射`);
+
+  // ===== 自动绑定 CPH（获取样例 + 直接写入 .prob 文件） =====
+  var problems = msg.problems || [];
+  if (problems.length === 0) {
+    await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(dirPath));
+    return;
+  }
+
+  var cphOk = 0, cphFail = 0;
+  var crypto = require('crypto');
+  // CPH 会在源文件所在文件夹下创建 .cph 目录，而不是 workspace 根目录！
+  var cphDir = path.join(dirPath, '.cph');
+  if (!fs.existsSync(cphDir)) {
+    fs.mkdirSync(cphDir, { recursive: true });
+  }
+
+  await vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: "正在绑定 CPH（含样例）...",
+    cancellable: false
+  }, async function(progress) {
+    for (var i = 0; i < problems.length; i++) {
+      var p = problems[i];
+      var pDisplay = p.name || ('P' + (p.problemId || p.order || (i+1)));
+      progress.report({ message: `${i+1}/${problems.length}: ${pDisplay}` });
+
+      try {
+        // 1. 构建完整的源文件路径（我们的目录文件）
+        var pid = p.problemId || p.order || 'unknown';
+        var pname = p.name ? p.name.replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim() : 'problem';
+        var srcFile = path.join(dirPath, pid + '.' + pname + '.cpp');
+
+        // 2. 确保 URL 是绝对路径，用来抓取页面解析样例
+        var problemUrl = p.url || '';
+        if (!problemUrl || problemUrl.startsWith('vscode-webview://') || !/^https?:\/\//i.test(problemUrl)) {
+          problemUrl = yzoj_url.replace(/\/+$/, '') + '/OnlineJudge/problem_show.php?id=' + (p.problemId || '');
+        }
+
+        // 3. 获取题目 HTML 解析样例
+        var html = await gethtml(problemUrl, globalCookie);
+        var parsed;
+        if (problemUrl.indexOf('contest_problem') >= 0) {
+          var { parseContestProblem } = require('./parse');
+          parsed = parseContestProblem(html, yzoj_url);
+        } else {
+          parsed = parsePracticeProblem(html, yzoj_url);
+        }
+        var samples = parsed.samples || [];
+
+        // 4. 构建测试用例（不带多余换行，匹配 CPH 格式）
+        var tests = samples.map(function(s, idx){
+          var inp = String((s && s.input != null) ? s.input : '');
+          var out = String((s && s.output != null) ? s.output : '');
+          return { id: Date.now() + idx, input: inp, output: out };
+        }).filter(function(t){
+          return (t.input || '').trim() !== '' || (t.output || '').trim() !== '';
+        });
+
+        // 5. 构建 CPH 题目名：P{题号} {题目名}
+        var cphName = 'P' + (p.problemId || p.order || (i+1)) + ' ' + (p.name || '');
+
+        // 6. 计算 .prob 文件名：.{basename}_{md5(完整路径)}.prob
+        var basename = path.basename(srcFile);
+        var hash = crypto.createHash('md5').update(srcFile, 'utf8').digest('hex');
+        var probFile = path.join(cphDir, '.' + basename + '_' + hash + '.prob');
+
+        // 7. 写入 .prob 文件
+        var probData = {
+          name: cphName,
+          url: problemUrl,
+          tests: tests,
+          interactive: false,
+          memoryLimit: parsed.meta && parsed.meta.memoryLimit ? (parseInt(parsed.meta.memoryLimit) || 256) : 256,
+          timeLimit: parsed.meta && parsed.meta.timeLimit ? (parseInt(parsed.meta.timeLimit) || 1000) : 1000,
+          srcPath: srcFile,
+          group: msg.contestName || 'FZYZOJ'
+        };
+        fs.writeFileSync(probFile, JSON.stringify(probData), 'utf8');
+
+        cphOk++;
+      } catch (e) {
+        cphFail++;
+        vscode.window.showWarningMessage(`⚠️ 【${pDisplay}】绑定 CPH 失败: ${e.message}`);
+      }
+    }
+  });
+
+  // 显示 CPH 绑定结果
+  if (cphFail > 0) {
+    vscode.window.showInformationMessage(`✅ CPH 已绑定 ${cphOk}/${problems.length} 题（${cphFail} 题失败，可手动重试）`);
+  } else {
+    vscode.window.showInformationMessage(`✅ 全部 ${problems.length} 题已绑定 CPH（含样例）`);
+  }
+
   await vscode.commands.executeCommand('revealInExplorer', vscode.Uri.file(dirPath));
 }
 
@@ -677,70 +773,149 @@ async function handleSubmitCode(context, yzoj_url, globalCookie) {
 }
 
 /**
- * 📤 发送至 CPH（保持原逻辑，附带样例数据）
+ * 📤 发送至 CPH（Competitive Companion 协议）
+ * - 自动创建源文件（文件名带题号）
+ * - 自动注册递交映射
  */
-async function handleSendToCPH(problem, panel) {
+async function handleSendToCPH(problem, panel, context) {
   try {
+    // 1. 构建测试用例（不带多余换行，匹配 CPH .prob 格式）
     let tests = [];
     if (Array.isArray(problem.tests) && problem.tests.length > 0) {
-      tests = problem.tests.map(function(t){return {input:String((t&&t.input!=null)?t.input:''),output:String((t&&t.output!=null)?t.output:'')}});
+      tests = problem.tests.map(function(t){
+        return {
+          input: String((t&&t.input!=null)?t.input:''),
+          output: String((t&&t.output!=null)?t.output:'')
+        };
+      });
     } else if (Array.isArray(problem.samples) && problem.samples.length > 0) {
-      tests = problem.samples.map(function(s){return {input:String((s&&s.input!=null)?s.input:''),output:String((s&&s.output!=null)?s.output:'')}});
+      tests = problem.samples.map(function(s){
+        return {
+          input: String((s&&s.input!=null)?s.input:''),
+          output: String((s&&s.output!=null)?s.output:'')
+        };
+      });
     }
 
-    function normBytes(v){ try { return Buffer.from(String(v==null?'':v),'utf8').length; } catch(e){ return 0; } }
     tests = tests.filter(function(t){
-      var hasIn = (t.input||'').trim() !== '';
-      var hasOut = (t.output||'').trim() !== '';
-      return hasIn || hasOut;
+      return (t.input||'').trim() !== '' || (t.output||'').trim() !== '';
     });
-    // CPH 建议的字段：{ input, output, dataType: 'utf-8-fs', ... }
-    // 这里仅保留最简 {input,output}
-    var payload = JSON.stringify({
-      name: problem.name,
-      group: problem.group,
-      url: problem.url,
+
+    // 2. 生成源文件路径
+    var workspaceRoot = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0
+      ? vscode.workspace.workspaceFolders[0].uri.fsPath
+      : null;
+    var srcPath = null;
+    if (workspaceRoot && problem.name) {
+      var safeName = String(problem.name)
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/\s+/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .substring(0, 100);
+      if (!safeName) safeName = 'problem_' + Date.now();
+      srcPath = path.join(workspaceRoot, safeName + '.cpp');
+    }
+
+    // 3. 创建源文件
+    if (srcPath && !fs.existsSync(srcPath)) {
+      var tpl = '#include <bits/stdc++.h>\nusing namespace std;\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    return 0;\n}\n';
+      await fsAsync.writeFile(srcPath, tpl, 'utf8');
+    }
+
+    // 4. 直接写入 .prob 文件（比 HTTP API 更可靠）
+    var probOk = false;
+    if (srcPath) {
+      try {
+        var crypto = require('crypto');
+        var srcDir = path.dirname(srcPath);
+        var cphDir = path.join(srcDir, '.cph');
+        if (!fs.existsSync(cphDir)) {
+          fs.mkdirSync(cphDir, { recursive: true });
+        }
+        var basename = path.basename(srcPath);
+        var hash = crypto.createHash('md5').update(srcPath, 'utf8').digest('hex');
+        var probFile = path.join(cphDir, '.' + basename + '_' + hash + '.prob');
+        var probTests = tests.map(function(t, idx){
+          return { id: Date.now() + idx, input: t.input, output: t.output };
+        });
+        var probData = {
+          name: problem.name || 'Unknown Problem',
+          url: problem.url || srcPath,
+          tests: probTests,
+          interactive: false,
+          memoryLimit: problem.memoryLimit || 256,
+          timeLimit: problem.timeLimit || 1000,
+          srcPath: srcPath,
+          group: problem.group || 'FZYZOJ'
+        };
+        fs.writeFileSync(probFile, JSON.stringify(probData), 'utf8');
+        probOk = true;
+      } catch (probErr) {
+        // .prob 写入失败，降级到 HTTP API
+      }
+    }
+
+    // 5. 注册映射
+    if (srcPath && problem.problemId) {
+      getMap().then(function(map){
+        var ts = new Date().toISOString();
+        map[srcPath] = {
+          problemId: String(problem.problemId),
+          contestId: null,
+          isContest: false,
+          url: problem.url || '',
+          createdAt: ts,
+          updatedAt: ts,
+          converted: false
+        };
+        saveMap(map).then(function(){
+          if (context && workspaceRoot) {
+            registerMapPath(context, workspaceRoot);
+          }
+          vscode.workspace.openTextDocument(srcPath).then(function(doc){
+            vscode.window.showTextDocument(doc);
+          });
+        });
+      });
+    }
+
+    // 6. 额外尝试 HTTP API（兼容旧版 CPH）
+    var batchId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+      var r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+    var payloadData = {
+      name: problem.name || 'Unknown Problem',
+      group: problem.group || 'FZYZOJ',
+      url: problem.url || 'https://github.com/DivyanshuAgrawal/Competitive-Programming-Helper',
       interactive: false,
       memoryLimit: problem.memoryLimit || 256,
       timeLimit: problem.timeLimit || 1000,
       tests: tests,
-      srcPath: problem.srcPath || null,
-      batch: problem.batch || null
-    });
-    logger.log('[DEBUG handleSendToCPH] testCount=' + tests.length + ' totalBytes=' + normBytes(payload));
-
-    const http = require('http');
-    const options = {
-      hostname: '127.0.0.1',
-      port: 27121,
-      path: '/',
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(payload)
-      }
+      testType: 'single',
+      input: { type: 'stdin' },
+      output: { type: 'stdout' },
+      languages: {},
+      languagesJ: {},
+      srcPath: srcPath,
+      batch: { id: batchId, size: 1 }
     };
-
-    const req = http.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          vscode.window.showInformationMessage(`✅ 已成功发送至 CPH: ${problem.name}（含 ${tests.length} 组样例）`);
-        } else {
-          vscode.window.showErrorMessage(`❌ CPH 响应异常: ${res.statusCode}`);
-        }
+    try {
+      const http = require('http');
+      var payload = JSON.stringify(payloadData);
+      var req = http.request({
+        hostname: '127.0.0.1', port: 27121, path: '/', method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
+      }, function(res) {
+        // HTTP 发送结果不重要，.prob 文件已写入
       });
-    });
+      req.on('error', function() { /* 忽略 HTTP 错误，.prob 已兜底 */ });
+      req.write(payload);
+      req.end();
+    } catch (_httpErr) { /* 忽略 */ }
 
-    req.on('error', (e) => {
-      vscode.window.showWarningMessage(
-        `⚠️ 未检测到 CPH 插件\n请确保：\n1. CPH 已打开\n2. 监听端口为 27121\n\n错误详情：${e.message}`
-      );
-    });
-
-    req.write(payload);
-    req.end();
+    vscode.window.showInformationMessage(`✅ 已发送至 CPH: ${problem.name}（${tests.length} 组样例）${probOk ? '\n📄 ' + path.basename(srcPath) + ' 已绑定提交' : ''}`);
     
   } catch (err) {
     vscode.window.showErrorMessage(`❌ 发送失败: ${err.message}`);

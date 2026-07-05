@@ -1,0 +1,14 @@
+.vscode/
+node_modules/
+extension/
+out/
+*.ts
+tsconfig.json
+esbuild.js
+webpack.config.js
+.vscodeignore
+.gitignore
+.git/
+*.md
+!README.md
+!LICENSE

@@ -1,7 +1,7 @@
 // extension.js - YZOJ VSCode 插件主入口
 const vscode = require('vscode');
 const logger = require('./logger');
-const { login, checkStatus, gethtml } = require('./ojclient');
+const { login, checkStatus, gethtml, posthtml, signalTimeout } = require('./ojclient');
 const { encrypt, decrypt } = require('./crypto');
 const { 
   parseStatusDetail, parseStatusPage, parseProblemListPage, parseTagList,
@@ -462,7 +462,7 @@ async function handleFetchImage(panel, msg) {
     if (!url || typeof url !== 'string') return;
     const headers = { 'User-Agent': 'Mozilla/5.0 (VS Code Extension)' };
     if (globalCookie) headers['Cookie'] = globalCookie;
-    const response = await fetch(url, { headers, signal: AbortSignal.timeout(10000) });
+    const response = await fetch(url, { headers, signal: signalTimeout(10000) });
     const buffer = await response.arrayBuffer();
     const base64 = Buffer.from(buffer).toString('base64');
     const contentType = response.headers.get('content-type') || 'image/png';
@@ -514,12 +514,12 @@ async function handleDownloadFile(panel, msg) {
     }
     const headers = { 'User-Agent': 'Mozilla/5.0 (VS Code Extension)' };
     if (globalCookie) headers['Cookie'] = globalCookie;
-    const response = await fetch(url, { headers, signal: AbortSignal.timeout(30000) });
+    const response = await fetch(url, { headers, signal: signalTimeout(30000) });
     if (!response.ok) {
       // 404 时尝试加 /OnlineJudge/ 前缀（只有 URL 不含 OnlineJudge 时才尝试）
       if (response.status === 404 && !/\/OnlineJudge\//i.test(url)) {
         var fixedUrl = url.replace(/^(https?:\/\/[^\/]+)(\/Upload\/)/i, '$1/OnlineJudge$2');
-        const retryResponse = await fetch(fixedUrl, { headers, signal: AbortSignal.timeout(30000) });
+        const retryResponse = await fetch(fixedUrl, { headers, signal: signalTimeout(30000) });
         if (retryResponse.ok) {
           const buf2 = Buffer.from(await retryResponse.arrayBuffer());
           await handleSaveFile(panel, fixedUrl, buf2);
@@ -800,7 +800,9 @@ async function loadHomepage(panel, baseUrl, cookie) {
   panel.webview.html = '<div style="text-align:center;padding:50px;color:#666">少女祈祷中...</div>';
   try {
   const html = await gethtml(baseUrl + '/OnlineJudge/', cookie);
-  var fixedHtml = html.replace(/src=["']([^"']*?)["']/gi, function(match, src) {
+  // 移除 Service Worker 注册代码（webview 不支持）
+  var fixedHtml = html.replace(/navigator\.serviceWorker\s*\.\s*register\s*\([^)]*\)\s*(?:\.\s*(?:then|catch)\s*\([^)]*\)\s*)*;?/gi, '/* sw removed */');
+  fixedHtml = fixedHtml.replace(/src=["']([^"']*?)["']/gi, function(match, src) {
     if (src && !src.startsWith('http') && !src.startsWith('data:') && !src.startsWith('//')) {
       var cleanPath = src.replace(/^\.?\//, '').replace(/^\/+/, '');
       var fullUrl;
@@ -827,7 +829,7 @@ async function loadHomepage(panel, baseUrl, cookie) {
       try {
         var hdrs = { 'User-Agent': 'Mozilla/5.0 (VS Code Extension)' };
         if (globalCookie) hdrs['Cookie'] = globalCookie;
-        var resp = await fetch(url, { headers: hdrs, signal: AbortSignal.timeout(8000) });
+        var resp = await fetch(url, { headers: hdrs, signal: signalTimeout(8000) });
         if (resp.ok) {
           var buf = await resp.arrayBuffer();
           var b64 = Buffer.from(buf).toString('base64');
@@ -1198,20 +1200,30 @@ async function loadSolutions(panel, problemId, baseUrl) {
 
 async function loadDiscussions(panel, problemId, baseUrl) {
   panel.webview.html = '<div style="text-align:center;padding:50px;color:#666">加载中...</div>';
+  console.log('[Discuss] === loadDiscussions 开始 ===');
+  console.log('[Discuss] problemId:', problemId, 'baseUrl:', baseUrl);
   try {
     const allDiscussions = [];
     
     // 先获取第一页，获取总页数
-    const firstHtml = await gethtml(`${baseUrl}/OnlineJudge/problem_discuss.php?pid=${problemId}&page=0`, globalCookie);
+    // 使用 GET + 浏览器风格请求头，不会被重定向
+    var getUrl = baseUrl + '/OnlineJudge/problem_discuss.php?pid=' + problemId + '&page=0';
+    console.log('[Discuss] 获取第0页，GET URL:', getUrl);
+    const firstHtml = await gethtml(getUrl, globalCookie);
+    console.log('[Discuss] 第0页响应长度:', firstHtml.length);
+    console.log('[Discuss] 第0页响应前200字符:', firstHtml.substring(0, 200));
     const firstData = parseProblemDiscussionPage(firstHtml, baseUrl, 0);
+    console.log('[Discuss] 解析结果: 讨论数=', firstData.discussions.length, '总页数=', firstData.totalPages);
     allDiscussions.push(...firstData.discussions);
     
     // 获取剩余页面的讨论
     const totalPages = firstData.totalPages;
     if (totalPages > 1) {
       for (let page = 1; page < totalPages; page++) {
+        console.log('[Discuss] 获取第' + page + '页');
         const html = await gethtml(`${baseUrl}/OnlineJudge/problem_discuss.php?pid=${problemId}&page=${page}`, globalCookie);
         const data = parseProblemDiscussionPage(html, baseUrl, page);
+        console.log('[Discuss] 第' + page + '页解析结果: 讨论数=' + data.discussions.length);
         allDiscussions.push(...data.discussions);
       }
     }
@@ -1329,7 +1341,9 @@ async function loadDiscussions(panel, problemId, baseUrl) {
         }
       });
     }
+    console.log('[Discuss] === loadDiscussions 完成，总讨论数:', allDiscussions.length, '===');
   } catch (e) {
+    console.log('[Discuss] loadDiscussions 错误:', e.message);
     panel.webview.html = '<div style="text-align:center;padding:30px;color:red">加载失败: ' + esc(e.message) + '</div>';
   }
 }
@@ -1585,6 +1599,7 @@ async function showEditor(panel, options, context) {
 }
 
 async function handleEditorSubmit(content, format, extraData, _context, yzoj_url, globalCookie) {
+  console.log('[Discuss] handleEditorSubmit 被调用！content长度:', (content||'').length, 'format:', format, 'type:', extraData ? extraData.type : '(无extraData)');
   if (!extraData) return;
   const type = extraData.type;
   format = format || extraData.format || 'markdown';
@@ -1642,24 +1657,27 @@ async function handleEditorSubmit(content, format, extraData, _context, yzoj_url
       const pid = extraData.problemId || extraData.pid;
       if (!pid) { vscode.window.showErrorMessage('❌ 缺少题目 ID'); return; }
       const postUrl = yzoj_url + '/OnlineJudge/problem_discuss.php?pid=' + pid + '&page=0';
-      const res = await fetch(postUrl, {
-        method: 'POST',
-        headers: { 'Cookie': globalCookie, 'Content-Type': 'application/x-www-form-urlencoded', 'Referer': postUrl },
-        body: new URLSearchParams({
-          body: finalContent,
-          submit: '提交'
-        }).toString()
-      });
-      const text = await res.text();
-      if (text.indexOf('success') >= 0 || text.indexOf('已发布') >= 0 || text.indexOf('成功') >= 0 || res.status === 200) {
-        vscode.window.showInformationMessage('✅ 讨论已发布');
-        // 跳转回题目
-        vscode.commands.executeCommand('yzoj.openProblemDetail', { id: pid, url: yzoj_url + '/OnlineJudge/problem_show.php?id=' + pid });
-      } else {
-        vscode.window.showErrorMessage('❌ 发布讨论失败，请检查内容');
-      }
+      console.log('[Discuss] === 开始发布讨论 ===');
+      console.log('[Discuss] 题目ID:', pid);
+      console.log('[Discuss] POST URL:', postUrl);
+      console.log('[Discuss] 发送内容长度:', finalContent.length, '字符');
+      console.log('[Discuss] 发送内容预览:', finalContent.substring(0, 200));
+      const body = new URLSearchParams({
+        body: finalContent,
+        submit: '提交'
+      }).toString();
+      console.log('[Discuss] 编码后 body:', body.substring(0, 500));
+      console.log('[Discuss] Cookie 前缀:', globalCookie ? globalCookie.substring(0, 30) + '...' : '(无)');
+      await posthtml(postUrl, globalCookie, body);
+      console.log('[Discuss] posthtml 返回成功，无异常');
+      // 讨论发布成功后直接加载讨论列表页
+      vscode.window.showInformationMessage('✅ 讨论已发布');
+      console.log('[Discuss] 正在跳转到讨论列表页，pid=' + pid);
+      vscode.commands.executeCommand('yzoj.openDiscussionList', pid);
+      console.log('[Discuss] === 发布讨论流程结束 ===');
     } catch (e) {
-      vscode.window.showErrorMessage('❌ 网络错误: ' + e.message);
+      console.log('[Discuss] 发布讨论捕获到异常:', e.message);
+      vscode.window.showErrorMessage('❌ 发布讨论失败: ' + e.message);
     }
   } else if (type === 'discussion') {
     try {
@@ -1834,6 +1852,13 @@ async function deleteProblemSet(panel, baseUrl, psid) {
 function activate(ctx) {
   context = ctx;
   yzoj_url = vscode.workspace.getConfiguration('yzoj').get('baseUrl');
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(function(e) {
+      if (e.affectsConfiguration('yzoj.baseUrl')) {
+        yzoj_url = vscode.workspace.getConfiguration('yzoj').get('baseUrl');
+      }
+    })
+  );
 
   vscode.commands.registerCommand('yzoj.login', async () => {
     let type, saved_user, key, users, username, password, status, tmp;
@@ -1851,7 +1876,7 @@ function activate(ctx) {
             users = decrypt(saved_user, key); [username, password] = users.split(':');
             status = await login(username, password);
             if (status.success) { usernamep = username; globalCookie = status.cookie; vscode.window.showInformationMessage('登录成功: ' + usernamep); checkAndUpdateMaps(); }
-            else vscode.window.showErrorMessage('登录失败!');
+            else vscode.window.showErrorMessage('登录失败: ' + (status.msg || '未知错误'));
           } catch (_error) { vscode.window.showErrorMessage('解密失败'); }
         }else{
           username = await vscode.window.showInputBox({ prompt: '用户名:' });
@@ -1867,7 +1892,7 @@ function activate(ctx) {
           }
           status = await login(username, password);
           if (status.success) { usernamep = username; globalCookie = status.cookie; vscode.window.showInformationMessage('登录成功: ' + usernamep); checkAndUpdateMaps(); }
-          else vscode.window.showErrorMessage('登录失败!');
+          else vscode.window.showErrorMessage('登录失败: ' + (status.msg || '未知错误'));
         }
       } else {
         username = await vscode.window.showInputBox({ prompt: '用户名:' });
@@ -1883,12 +1908,12 @@ function activate(ctx) {
         }
         status = await login(username, password);
         if (status.success) { usernamep = username; globalCookie = status.cookie; vscode.window.showInformationMessage('登录成功: ' + usernamep); checkAndUpdateMaps(); }
-        else vscode.window.showErrorMessage('登录失败!');
+        else vscode.window.showErrorMessage('登录失败: ' + (status.msg || '未知错误'));
       }
     } else if (type == 'cookie 登录') {
       tmp = await vscode.window.showInputBox({ prompt: 'Cookie:', password: true });
       if ((status = (await checkStatus(tmp))).isLoggedIn) { usernamep = status.username; globalCookie = tmp; vscode.window.showInformationMessage('登录成功: ' + usernamep); checkAndUpdateMaps(); }
-      else vscode.window.showErrorMessage('登录失败!');
+      else vscode.window.showErrorMessage('登录失败（Cookie无效或已过期）');
     }
   });
 
@@ -1976,7 +2001,7 @@ function activate(ctx) {
       if (msg.command == 'fetchImage') { handleFetchImage(panel, msg); return; }
       if (msg.command == 'downloadFile') { handleDownloadFile(panel, msg); return; }
       if (msg.command == 'createContestFolder') {
-        handleCreateContestFolder(msg, context);
+        handleCreateContestFolder(msg, context, yzoj_url, globalCookie);
         // 注册工作区映射路径到本地存储
         const ws = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
         if (ws) registerMapPath(context, ws.uri.fsPath);
@@ -2391,6 +2416,7 @@ function activate(ctx) {
       const html = await gethtml(target.url, globalCookie);
       
       const detail = target.url.includes('problem_show.php') ? parsePracticeProblem(html, yzoj_url) : parseContestProblem(html, yzoj_url);
+      detail.url = target.url;
       
       // 直接使用解析结果中的 ac_count 和 sub_count
       if (detail.meta && detail.meta.acCount) {
@@ -2406,9 +2432,8 @@ function activate(ctx) {
       panel.webview.html = getProblemDetailWebview(detail, yzoj_url);
       panel.webview.onDidReceiveMessage(msg => {
         if (msg.command == 'fetchImage') { handleFetchImage(panel, msg); return; }
-        if (msg.command == 'sendToCPH') handleSendToCPH(msg.problem, panel);
+        if (msg.command == 'sendToCPH') handleSendToCPH(msg.problem, panel, context);
         if (msg.command == 'downloadFile') { handleDownloadFile(panel, msg); return; }
-        if (msg.command == 'submitProblem') vscode.commands.executeCommand('yzoj.submitCode');
         if (msg.command == 'openExternal') {
           var _extUrl3 = msg.url;
           if (_extUrl3.startsWith('vscode-webview://')) {
