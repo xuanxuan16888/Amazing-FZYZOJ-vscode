@@ -8,7 +8,7 @@ var eq=String.fromCharCode(38,113,117,111,116,59);
 var ep=String.fromCharCode(38,35,48,51,57,59);
 function esc(t){if(!t)return '';return String(t).replace(/&/g,ea).replace(/</g,el).replace(/>/g,eg).replace(/"/g,eq).replace(/'/g,ep);}
 function cln(t){return String(t||'').replace(/\xa0/g,' ').replace(/&nbsp;/gi,' ').replace(/\s+/g,' ').trim();}
-function extractPagination($){var p=$('#pagelist').last();if(!p.length)return{currentPage:1,totalPages:1,hasMore:false};var cp=1;p.contents().each(function(i,e){if(e.type==='text'){var m=$(e).text().match(/^\d+$/);if(m&&!$(e).parent('a').length){cp=parseInt(m[0]);return false}}});var l=p.find('a[href*="page="]');var tp=cp;l.each(function(i,a){var pg=parseInt($(a).text());if(pg>tp)tp=pg});return{currentPage:cp,totalPages:tp,hasMore:cp<tp};}
+function extractPagination($){var p=$('#pagelist').last();if(!p.length)return{currentPage:1,totalPages:1,hasMore:false};var cp=1;p.contents().each(function(i,e){if(e.type==='text'){var m=$(e).text().match(/^\d+$/);if(m&&!$(e).parent('a').length){cp=parseInt(m[0]);return false}}});var l=p.find('a[href*="page="]');var tp=cp;l.each(function(i,a){var pg=parseInt($(a).text());if(pg>tp)tp=pg});if(cp>tp)cp=tp;return{currentPage:cp,totalPages:tp,hasMore:cp<tp};}
 // 从 <a href="user_show.php?id=X"><span style="color:#HEX"> 中提取颜色（支持嵌套 span）
 function extractUserColorFromLink($link){
   if(!$link||!$link.length)return '';
@@ -34,7 +34,8 @@ function parseHomepage(html,b){var $=require('cheerio').load(html);var d={announ
 function parseScheduledContests(html,b){var $=require('cheerio').load(html);var c=[];$('#tablelist tbody tr').each(function(){var t=$(this).find('td');if(t.length!==4)return;var id=t.eq(0).text().trim().replace(/[^\d-]/g,'');var nl=t.eq(1).find('a');var name=nl.text();var pt=null;var an=nl.next();if(an.length){var m=an.text().match(/\(\d+\.?\d*\s*级权限\)/);if(m)pt=m[0];}c.push({id:id,name:name,permissionTag:pt,time:t.eq(2).text(),status:t.eq(3).text(),url:nl.attr('href')?b+'/OnlineJudge/'+nl.attr('href'):'',isHidden:id==='-1'||name.includes('隐藏'),type:'scheduled'});});return{contests:c,...extractPagination($)};}
 function parseActiveContests(html,b){var $=require('cheerio').load(html);var c=[];$('#tablelist tbody tr').each(function(){var t=$(this).find('td');if(t.length!==4)return;var id=t.eq(0).text().trim().replace(/[^\d-]/g,'');var nl=t.eq(1).find('a');var name=nl.text();var pt=null;if(!name.includes('隐藏')){c.push({id:id,name:name,permissionTag:pt,time:t.eq(2).text(),status:t.eq(3).text(),url:nl.attr('href')?b+'/OnlineJudge/'+nl.attr('href'):'',isHidden:false,type:'active'})}});return{contests:c,...extractPagination($)};}
 function parsePastContests(html,b){var $=require('cheerio').load(html);var c=[];$('#tablelist tbody tr').each(function(){var t=$(this).find('td');if(t.length!==4)return;var id=t.eq(0).text().trim().replace(/[^\d-]/g,'');var nl=t.eq(1).find('a');var name=nl.text();var pt=null;if(!name.includes('隐藏')){c.push({id:id,name:name,permissionTag:pt,time:t.eq(2).text(),status:t.eq(3).text(),url:nl.attr('href')?b+'/OnlineJudge/'+nl.attr('href'):'',isHidden:false,type:'past'})}});return{contests:c,...extractPagination($)};}
-function parseContestDetail(html,b){var $=require('cheerio').load(html);var raw=$('h2').first().text();var title=raw.replace(/^T\d+\s*[-–—]\s*/,'');var permission=$('p center').first().text()||null;var info={};var infoTable=$('table[style*="600px"]').first();infoTable.find('td').each(function(){var t=$(this);var l=t.contents().filter(function(){return this.nodeType===3}).first().text().replace(/[：:]/g,'');var f=t.find('font');var a=t.find('a');var v='';if(f.length)v=f.text();else if(a.length){var names=[];a.each(function(){names.push($(this).text());});v=names.join('\u3001');}else v=t.text().replace(l,'').replace(/[：:]/g,'');if(l&&v)info[l]=v;});var desc='';var tablelist=$('#tablelist');if(tablelist.length){var prev=tablelist.prevAll('div').filter(function(){var st=$(this).attr('style')||'';return st.indexOf('text-align')>=0||st.indexOf('center')>=0;}).first();if(prev.length){var tmp=prev.html()||'';tmp=tmp.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/>\s+</g,'><').replace(/<br\s*\/?>\s*/gi,'<br>').replace(/(<br>)+/gi,'<br>').trim();if(tmp&&tmp.length>20&&tmp.indexOf('用户信息')<0&&tmp.indexOf('Lv.')<0&&tmp.indexOf('我')<0&&tmp.indexOf('退出')<0&&tmp.indexOf('比赛结果')<0&&tmp.indexOf('评测状态')<0&&tmp.indexOf('排行榜')<0)desc=tmp;}}if(!desc&&tablelist.length){var allDivs=$('div[style*="text-align"]');var tblIdx=allDivs.index(tablelist);if(tblIdx>0){for(var i=tblIdx-1;i>=0;i--){var d=$(allDivs[i]);var rawHtml=d.html()||'';rawHtml=rawHtml.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/>\s+</g,'><').replace(/<br\s*\/?>\s*/gi,'<br>').replace(/(<br>)+/gi,'<br>').trim();if(rawHtml&&rawHtml.length>30&&rawHtml.indexOf('Lv.')<0&&rawHtml.indexOf('用户信息')<0&&rawHtml.indexOf('我')<0&&rawHtml.indexOf('出题人')<0&&rawHtml.indexOf('退出')<0&&rawHtml.indexOf('比赛结果')<0&&rawHtml.indexOf('评测状态')<0&&rawHtml.indexOf('排行榜')<0){desc=rawHtml;break;}}}}if(!desc){var cnt=$('#content');if(cnt.length){cnt.find('div[style*="text-align"],div[style*="center"]').each(function(){var rh=$(this).html()||'';rh=rh.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/>\s+</g,'><').replace(/<br\s*\/?>\s*/gi,'<br>').replace(/(<br>)+/gi,'<br>').trim();if(rh&&rh.length>10&&rh.indexOf('Lv.')<0&&rh.indexOf('用户信息')<0&&rh.indexOf('我')<0&&rh.indexOf('出题人')<0&&rh.indexOf('退出')<0&&rh.indexOf('比赛结果')<0&&rh.indexOf('评测状态')<0&&rh.indexOf('排行榜')<0){desc=rh;return false;}});}}var problems=[];$('#tablelist tbody tr').each(function(){var t=$(this).find('td');if(t.length<3)return;var it=t.eq(0).text();var pidMatch1=it.match(/\((\d+)\)/);var pid=pidMatch1?pidMatch1[1]||'':'';var nl=t.eq(1).find('a');var name=nl.text();var href=nl.attr('href')||'';var sc=t.eq(2);var scoreA=sc.find('a').first();var scoreHref=scoreA.attr('href')||'';var statusId='';var statusUrl='';if(scoreHref){var m=scoreHref.match(/status_details\.php\?[^#?&]*id=(\d+)/);if(m&&m[1])statusId=m[1];else{var m2=scoreHref.match(/[?&]id=(\d+)/);if(m2&&m2[1]&&/status\.php|submit\.php|source_show\.php|status_details\.php/i.test(scoreHref))statusId=m2[1];}statusUrl=scoreHref.startsWith('http')?scoreHref:(b+'/OnlineJudge/'+scoreHref.replace(/^\/+/,''));}var rawScoreText=cln(sc.text());var digitOnly=rawScoreText.replace(/[^\d\-]/g,'');var onlyDigits=digitOnly.length>0&&/^[\-\d]+$/.test(digitOnly);var isSubmittedOnly=false;if(!onlyDigits&&/已提交|Submitted|已递交|submitted|已提交答案|Done/i.test(rawScoreText)){isSubmittedOnly=true;}if(!statusId&&!isSubmittedOnly&&rawScoreText&&/^[^\d]*(\d+)[^\d]*$/.test(rawScoreText)){var mSide=rawScoreText.match(/[^\d]*(\d+)[^\d]*/);if(mSide){digitOnly=mSide[1];onlyDigits=true;}}var scHtml=sc.html()||'';var scoreColor='';var scColorMatch=scHtml.match(/color\s*:\s*([^;"'}]+)/i);if(scColorMatch)scoreColor=scColorMatch[1].trim();var orderMatch1=it.match(/#(\d+)/);var mark=it.indexOf('\u2713')>=0?'ac':'';var markA=t.eq(0).find('a').first();var markUrl='';if(markA.length){var mh=markA.attr('href')||'';if(mh)markUrl=mh.indexOf('http')===0?mh:(b+'/OnlineJudge/'+mh.replace(/^\/+/,''));}problems.push({order:orderMatch1?orderMatch1[1]||'':'',problemId:pid,name:name,url:href?b+'/OnlineJudge/'+href:'',score:onlyDigits?digitOnly:(rawScoreText||'-'),scoreColor:scoreColor,statusId:statusId,statusUrl:statusUrl,markUrl:markUrl,isSubmittedOnly:isSubmittedOnly,mark:mark});});var links=[];$('a[href*="contest_result.php"]').each(function(){var t=$(this).text(),h=$(this).attr('href');if(t&&h)links.push({text:t,url:b+'/OnlineJudge/'+h,type:'result'});});$('a[href*="status.php?tid="]').each(function(){var t=$(this).text(),h=$(this).attr('href');if(t&&h)links.push({text:t,url:b+'/OnlineJudge/'+h,type:'status'});});$('a[href*="status.php?test="]').each(function(){var t=$(this).text(),h=$(this).attr('href');if(t&&h)links.push({text:t,url:b+'/OnlineJudge/'+h,type:'contestStatus'});});$('a[href*="contest_rank.php"]').each(function(){var t=$(this).text(),h=$(this).attr('href');if(t&&h)links.push({text:t,url:b+'/OnlineJudge/'+h,type:'rank'});});$('a[href*="problem_status.php"]').each(function(){var t=$(this).text(),h=$(this).attr('href');if(t&&h)links.push({text:t,url:b+'/OnlineJudge/'+h,type:'probStatus'});});
+function parseContestDetail(html,b){var $=require('cheerio').load(html);var raw=$('h2').first().text();var title=raw.replace(/^T\d+\s*[-–—]\s*/,'');var permission=$('p center').first().text()||null;if(!permission||!/无权查看|无权限/i.test(permission)){var bodyText=$('body').text();if(/无权查看|无权限/i.test(bodyText)){permission=permission||'无权查看';}}var info={};var infoTable=$('table[style*="600px"]').first();infoTable.find('td').each(function(){var t=$(this);var l=t.contents().filter(function(){return this.nodeType===3}).first().text().replace(/[：:]/g,'');var f=t.find('font');var a=t.find('a');var v='';if(f.length)v=f.text();else if(a.length){var names=[];a.each(function(){names.push($(this).text());});v=names.join('\u3001');}else v=t.text().replace(l,'').replace(/[：:]/g,'');if(l&&v)info[l]=v;});var desc='';var tablelist=$('#tablelist');// AC 自动机：描述内容过滤关键字（排除非描述元素）
+var descFilterAc=ac.build(['Lv.','用户信息','我','出题人','退出','比赛结果','评测状态','排行榜']);if(tablelist.length){var prev=tablelist.prevAll('div').filter(function(){var st=$(this).attr('style')||'';return st.indexOf('text-align')>=0||st.indexOf('center')>=0;}).first();if(prev.length){var tmp=prev.html()||'';tmp=tmp.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/>\s+</g,'><').replace(/<br\s*\/?>\s*/gi,'<br>').replace(/(<br>)+/gi,'<br>').trim();if(tmp&&tmp.length>20&&!ac.test(tmp,descFilterAc))desc=tmp;}}if(!desc&&tablelist.length){var allDivs=$('div[style*="text-align"]');var tblIdx=allDivs.index(tablelist);if(tblIdx>0){for(var i=tblIdx-1;i>=0;i--){var d=$(allDivs[i]);var rawHtml=d.html()||'';rawHtml=rawHtml.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/>\s+</g,'><').replace(/<br\s*\/?>\s*/gi,'<br>').replace(/(<br>)+/gi,'<br>').trim();if(rawHtml&&rawHtml.length>30&&!ac.test(rawHtml,descFilterAc)){desc=rawHtml;break;}}}}if(!desc){var cnt=$('#content');if(cnt.length){cnt.find('div[style*="text-align"],div[style*="center"]').each(function(){var rh=$(this).html()||'';rh=rh.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'').replace(/>\s+</g,'><').replace(/<br\s*\/?>\s*/gi,'<br>').replace(/(<br>)+/gi,'<br>').trim();if(rh&&rh.length>10&&!ac.test(rh,descFilterAc)){desc=rh;return false;}});}}var problems=[];$('#tablelist tbody tr').each(function(){var t=$(this).find('td');if(t.length<3)return;var it=t.eq(0).text();var pidMatch1=it.match(/\((\d+)\)/);var pid=pidMatch1?pidMatch1[1]||'':'';var nl=t.eq(1).find('a');var name=nl.text();var href=nl.attr('href')||'';var sc=t.eq(2);var scoreA=sc.find('a').first();var scoreHref=scoreA.attr('href')||'';var statusId='';var statusUrl='';if(scoreHref){var m=scoreHref.match(/status_details\.php\?[^#?&]*id=(\d+)/);if(m&&m[1])statusId=m[1];else{var m2=scoreHref.match(/[?&]id=(\d+)/);if(m2&&m2[1]&&/status\.php|submit\.php|source_show\.php|status_details\.php/i.test(scoreHref))statusId=m2[1];}statusUrl=scoreHref.startsWith('http')?scoreHref:(b+'/OnlineJudge/'+scoreHref.replace(/^\/+/,''));}var rawScoreText=cln(sc.text());var digitOnly=rawScoreText.replace(/[^\d\-]/g,'');var onlyDigits=digitOnly.length>0&&/^[\-\d]+$/.test(digitOnly);var isSubmittedOnly=false;if(!onlyDigits&&/已提交|Submitted|已递交|submitted|已提交答案|Done/i.test(rawScoreText)){isSubmittedOnly=true;}if(!statusId&&!isSubmittedOnly&&rawScoreText&&/^[^\d]*(\d+)[^\d]*$/.test(rawScoreText)){var mSide=rawScoreText.match(/[^\d]*(\d+)[^\d]*/);if(mSide){digitOnly=mSide[1];onlyDigits=true;}}var scHtml=sc.html()||'';var scoreColor='';var scColorMatch=scHtml.match(/color\s*:\s*([^;"'}]+)/i);if(scColorMatch)scoreColor=scColorMatch[1].trim();var orderMatch1=it.match(/#(\d+)/);var mark=it.indexOf('\u2713')>=0?'ac':'';var markA=t.eq(0).find('a').first();var markUrl='';if(markA.length){var mh=markA.attr('href')||'';if(mh)markUrl=mh.indexOf('http')===0?mh:(b+'/OnlineJudge/'+mh.replace(/^\/+/,''));}problems.push({order:orderMatch1?orderMatch1[1]||'':'',problemId:pid,name:name,url:href?b+'/OnlineJudge/'+href:'',score:onlyDigits?digitOnly:(rawScoreText||'-'),scoreColor:scoreColor,statusId:statusId,statusUrl:statusUrl,markUrl:markUrl,isSubmittedOnly:isSubmittedOnly,mark:mark});});var links=[];$('a[href*="contest_result.php"]').each(function(){var t=$(this).text(),h=$(this).attr('href');if(t&&h)links.push({text:t,url:b+'/OnlineJudge/'+h,type:'result'});});$('a[href*="status.php?tid="]').each(function(){var t=$(this).text(),h=$(this).attr('href');if(t&&h)links.push({text:t,url:b+'/OnlineJudge/'+h,type:'status'});});$('a[href*="status.php?test="]').each(function(){var t=$(this).text(),h=$(this).attr('href');if(t&&h)links.push({text:t,url:b+'/OnlineJudge/'+h,type:'contestStatus'});});$('a[href*="contest_rank.php"]').each(function(){var t=$(this).text(),h=$(this).attr('href');if(t&&h)links.push({text:t,url:b+'/OnlineJudge/'+h,type:'rank'});});$('a[href*="problem_status.php"]').each(function(){var t=$(this).text(),h=$(this).attr('href');if(t&&h)links.push({text:t,url:b+'/OnlineJudge/'+h,type:'probStatus'});});
 // 🔑 新增：判断比赛是否支持排行榜 / 评测状态（与 getContestInfo 逻辑保持一致，双保险：提示文字 + 实际链接存在）
 var supportsRank=false,supportsStatus=false;
 // eslint-disable-next-line no-unused-vars
@@ -372,14 +373,20 @@ function parsePracticeProblem(html,b){
   // 移除已在 .cc 头部渲染的元数据，保留所有原始内容结构
   cdiv.find('h2').remove(); // 标题（已在 .cc 渲染）
   cdiv.find('p[align="center"]').remove(); // 时间限制/出题人（已在 .cc 渲染）
-  cdiv.find('style,#tagslist,#acl,#pagelist,#jumpbox').remove(); // 保留 script（原页面 toggle）
+  cdiv.find('style,#tagslist,#acl,#pagelist,#jumpbox').remove();
+  // 移除引用 tagslist 作为全局变量的内联 script（该元素已被移除，执行时会报 ReferenceError）
+  cdiv.find('script').each(function() {
+    var sc = $(this).html() || '';
+    if (sc.indexOf('tagslist') >= 0 || sc.indexOf('showbutton') >= 0) {
+      $(this).remove();
+    }
+  });
   cdiv.find('table').removeAttr('border').removeAttr('cellpadding').removeAttr('cellspacing'); // 移除 HTML border 属性（原 OJ 有全局重置）
   // 移除导航链接（题解/提交/状态/讨论等），保留内容链接
   cdiv.find('a[href*="submit"],a[href*="solution"],a[href*="status"],a[href*="discuss"],input,button,a.btn').remove();
-  cdiv.find('a:contains("题解"),a:contains("讨论"),a:contains("提交"),a:contains("状态"),a:contains("Source")').remove();
-  cdiv.find('center:contains("状态"),center:contains("标签"),center:contains("题解"),center:contains("讨论")').remove();
+  cdiv.find('a:contains("题解"),a:contains("讨论"),a:contains("提交"),a:contains("状态"),a:contains("Source"),a:contains("数据"),a:contains("修改题目"),a:contains("编辑题目")').remove();
+  cdiv.find('center:contains("状态"),center:contains("标签"),center:contains("题解"),center:contains("讨论"),center:contains("数据"),center:contains("修改题目"),center:contains("编辑题目")').remove();
   var rawHtml = cdiv.html() || '';
-  // 原文中的切换表格自带 onclick 和 script，直接保留即可使用原始逻辑
   if (rawHtml.trim()) {
     sectionsHtml['题目描述'] = rawHtml;
     sections['题目描述'] = cdiv.text().trim();
@@ -483,11 +490,13 @@ $('p').each(function(){
   for (var key in sectionsHtml) {
     sectionsHtml[key] = processDownloadLinks(sectionsHtml[key]);
   }
+  var canEdit = $('a[href*="problem_edit"]').length > 0 || $('a:contains("修改题目")').length > 0 || $('a:contains("编辑题目")').length > 0;
   return{
     type:'practice',problemId:pid,title:title,difficulty:diff,permission:null,
     authors:authors,authorIds:authorIds,authorColors:authorColors,authorHtmls:authorHtmls,meta:meta,tags:tags,sections:sections,sectionsHtml:sectionsHtml,
     samples:samples,
-    actions:[]
+    actions:[],
+    canEdit:canEdit
   };
 }
 
@@ -1840,7 +1849,8 @@ function parseUserPage(html,b){
   var headerImgUrl='';
   var bannerSelectors=[
     'div.user-header, div.profile-header, div.header-banner, div.user-banner, div.top-banner, div.banner',
-    'div#header, div.header, section.user-cover, .cover-image'
+    'div#header, div.header, section.user-cover, .cover-image',
+    'div.cover, div.profile-cover, div.user-cover-image, div.bg-cover'
   ];
   var bannerEls=[];
   for(var bi=0;bi<bannerSelectors.length;bi++){
@@ -1858,6 +1868,11 @@ function parseUserPage(html,b){
     }
   }
   // 兜底：如果 ojserver 有 header_image_url 字段会在 merge 时覆盖，这里不用再兜底
+  // 将相对路径转换为绝对路径
+  if(headerImgUrl&&headerImgUrl.indexOf('://')<0){
+    if(headerImgUrl.indexOf('/')===0)headerImgUrl=b+headerImgUrl;
+    else headerImgUrl=b+'/OnlineJudge/'+headerImgUrl.replace(/^\.\/+/g,'');
+  }
 
   var honorTitles=['超级大神犇','大神犇','大神','中犇','小犇','超级大研究员','大研究员','研究员','职业程序员','专家','远程家','程序员','初学者','学习者','Master','Grandmaster','Expert','Specialist','Pupil','Newbie','Legend','Candidate'];
   var _honorAc = ac.build(honorTitles);
@@ -1956,7 +1971,7 @@ function parseUserPage(html,b){
   // 优先检测 "用户不存在" / "用户未找到" 的独立页面（不含用户数据）
   if(/用户不存在/.test(fullHtml)||/用户未找到/.test(fullHtml)||/不存在该用户/.test(fullHtml)){
     // 检查是否真的没解析到用户数据（说明是纯错误页面）
-    if(!username&&!userId){return null;}
+    if(!username&&!userId){console.log('[YZ_PARSE] user not found page, returning null');return null;}
   }
   // 移除"未登录"，因为很多页面都可能包含这个词，不应该作为封禁判断依据
   var banKeywords=['封禁','禁用','注销','该用户已','账户已','账号已','无法查看','无权限查看','访问受限'];
@@ -1964,19 +1979,25 @@ function parseUserPage(html,b){
   // 排除 "不存在" 在第一轮检查，后面单独处理
   if (_banAc && (ac.test(fullText, _banAc) || ac.test(fullHtml, _banAc))) { isBanned = true; }
   // 独立检查 "不存在"：只在主要内容区域中出现时才触发
+  // 使用完整短语避免误伤（如 bio 中含"不存在"但用户存在）
   if(!isBanned){
-    var contentText=$('#content').text()||'';
-    if(contentText.includes('不存在')){isBanned=true;}
+    var h2Text=$('h2').first().text()||'';
+    if(/不存在/.test(h2Text)){isBanned=true;}
+    else{
+      var contentText=$('#content').text()||'';
+      if(/用户不存在|不存在该用户/.test(contentText)){isBanned=true;}
+    }
   }
   // 如果已经解析到用户名或用户ID，说明用户正常存在，不应判定为封禁
-  if(isBanned&&(username||userId)){isBanned=false;}
+  if(isBanned&&(username||userId)){console.log('[YZ_PARSE] banned cleared: found username/userId',username,userId);isBanned=false;}
   // 如果 h2 中找不到 user_show 链接，且整个页面也找不到 user_show 链接（登录状态下的用户页一般不应该），也视为异常状态
   if(!isBanned){
     var anyUserLink=$('a[href*="user_show.php"]');
     var hasTable=$('#tablelist').length>0;
     // 只有在既没有用户链接，又没有表格数据，又没有用户名和ID时，才认为是封禁
-    if(!anyUserLink.length&&!hasTable&&!username&&!userId){isBanned=true;}
+    if(!anyUserLink.length&&!hasTable&&!username&&!userId){console.log('[YZ_PARSE] banned: no user link, no table, no username/id');isBanned=true;}
   }
+  console.log('[YZ_PARSE] step1 banned='+isBanned+' username='+username+' userId='+userId+' h2='+(h2||'').substring(0,200));
   var solvedProblems=[];
   var recentSubmissions=[];
   var activityData=[];
@@ -1988,25 +2009,28 @@ function parseUserPage(html,b){
   var infoTable=null;
   var contentTablelist=contentDiv.find('table#tablelist');
   var candidates=contentTablelist.length?contentTablelist:$('#tablelist');
+  // AC 自动机：信息表列头关键字检测
+  var infoColAc=ac.build(['真实姓名','学校','E-mail','提交次数','解决题数','签名','用户组','注册时间','Rating','积分','排名']);
   candidates.each(function(){
     var tbl=$(this);
     if(tbl.closest('#ftoolbarshow').length>0)return true;
     var thRow=tbl.find('tr').first();
     var headers=thRow.find('th,td').map(function(){return $(this).text().trim();}).get();
     var hasInfoCol=false;
-    headers.forEach(function(h){if(/真实姓名|学校|E-mail|提交次数|解决题数|签名|用户组|注册时间|Rating|积分|排名/.test(h))hasInfoCol=true;});
+    for(var hi=0;hi<headers.length;hi++){if(ac.test(headers[hi],infoColAc)){hasInfoCol=true;break;}}
     var firstTds=tbl.find('tr').first().find('td');
     if(firstTds.length<2&&!hasInfoCol){
-      // 检查第二行
       var secTr=tbl.find('tr').eq(1).find('td');
       if(secTr.length>=2){
         var l0=secTr.eq(0).text().trim();
-        if(/真实姓名|学校|E-mail|提交次数|解决题数|签名|用户组|注册时间|Rating|积分|排名/.test(l0))hasInfoCol=true;
+        if(ac.test(l0,infoColAc))hasInfoCol=true;
       }
     }
     if(hasInfoCol){infoTable=tbl;return false;}
   });
   if(infoTable){
+    // AC 自动机：信息表标签字段检测（单次扫描替代逐条件正则）
+    var infoLabelAc=ac.build(['真实姓名','提交次数','解决题数','已解决','通过题数','学校','学院','班级','E-mail','邮箱','签名','个性签名','个人签名','排名','Rank','名次']);
     infoTable.find('tr').each(function(){
       var cells=$(this).find('td');
       if(cells.length<2)return;
@@ -2014,18 +2038,16 @@ function parseUserPage(html,b){
         var label=cells.eq(ci).text().trim();var value=cells.eq(ci+1).text().trim();
         if(!label)continue;
         infoRows.push({label:label,value:value,cells:cells,idx:ci+1});
-        if(label.includes('真实姓名'))realName=value;
-        else if(/提交次数/.test(label)){
-          var sm=value.match(/(\d+)/);submissionCount=sm?parseInt(sm[1]):0;
-        }
-        else if(/解决题数|已解决|通过题数/.test(label)){
-          var sm=value.match(/(\d+)/);solvedCount=sm?parseInt(sm[1]):0;
-        }
-        else if(/学校|学院|班级/.test(label))school=value;
-        else if(/E-mail|邮箱/.test(label))email=value;
-        else if(/签名|个性签名|个人签名/.test(label))signature=value;
-        else if(/排名|Rank|名次/.test(label)){
-          var rm=value.match(/(\d+)/);rank=rm?rm[1]:value;
+        var matches=ac.match(label,infoLabelAc);
+        for(var mi=0;mi<matches.length;mi++){
+          var pi=matches[mi];
+          if(pi===0)realName=value;
+          else if(pi===1){var sm=value.match(/(\d+)/);submissionCount=sm?parseInt(sm[1]):0;}
+          else if(pi>=2&&pi<=4){var sm=value.match(/(\d+)/);solvedCount=sm?parseInt(sm[1]):0;}
+          else if(pi>=5&&pi<=7)school=value;
+          else if(pi===8||pi===9)email=value;
+          else if(pi>=10&&pi<=12)signature=value;
+          else if(pi>=13&&pi<=15){var rm=value.match(/(\d+)/);rank=rm?rm[1]:value;}
         }
       }
     });
@@ -2034,11 +2056,10 @@ function parseUserPage(html,b){
   if(!isBanned){
     for(var ri=0;ri<infoRows.length;ri++){
       if(/用户组|权限|身份/.test(infoRows[ri].label)){
-        var permVal=infoRows[ri].value.replace(/[Lv.]/g,'').trim();
+        var permVal=infoRows[ri].value.replace(/\s*Lv\.\s*/gi,'').trim();
         var permNum=parseInt(permVal);
-        if(!isNaN(permNum)&&permNum<0){
-          isBanned=true;
-        }
+        console.log('[YZ_PARSE] perm check: label='+infoRows[ri].label+' value='+infoRows[ri].value+' parsed='+permVal+' num='+permNum);
+        if(!isNaN(permNum)&&permNum<0){console.log('[YZ_PARSE] banned: negative perm');isBanned=true;}
         break;
       }
     }
@@ -2147,6 +2168,23 @@ function parseUserPage(html,b){
     }
   }
   if(!signature&&bioText){signature=bioText.slice(0,80);}
+  // ===== 从 h2 中提取真实权限值（用户名后含 font-family:georgia 的数字） =====
+  // 例: <span style='color:blue;font-family:georgia'>2</span>
+  var permission = '';
+  var h2Html = h2El.html() || '';
+  var permMatch = h2Html.match(/<span[^>]*style=['"][^'"]*font-family\s*:\s*georgia[^'"]*['"][^>]*>(\-?\d+)<\/span>/i);
+  if (permMatch) {
+    permission = permMatch[1];
+  } else if (_L195) {
+    var linePermMatch = _L195.match(/<span[^>]*style=['"][^'"]*font-family\s*:\s*georgia[^'"]*['"][^>]*>(\-?\d+)<\/span>/i);
+    if (linePermMatch) permission = linePermMatch[1];
+  }
+  // 用 h2 中的权限值判定封禁（仅当为负数时）
+  if (!isBanned && permission !== '') {
+    var permNum = parseInt(permission);
+    console.log('[YZ_PARSE] h2 perm: '+permission+' num='+permNum);
+    if (!isNaN(permNum) && permNum < 0) {console.log('[YZ_PARSE] banned: negative h2 perm');isBanned = true;}
+  }
   // 封禁用户：标记为已封禁，前端显示灰色
   if(isBanned&&solvedCount>=0){solvedCount=-2;}
   return{
@@ -2166,11 +2204,13 @@ function parseUserPage(html,b){
     recentSubmissions:recentSubmissions,
     activityData:activityData,
     isBanned:isBanned,
+    permission:permission,
     color:userColor||'',
     userHtml:userHtml||'',
     header_image_url:headerImgUrl||'',
     headerImg:headerImgUrl||''
   };
+  console.log('[YZ_PARSE] final result: username='+username+' userId='+userId+' isBanned='+isBanned+' solved='+solvedCount+' permission='+permission+' bioLen='+(bio||'').length);
 }
 
 function parseSolutionsPage(html,b,page){
@@ -2217,14 +2257,7 @@ function parseSolutionsPage(html,b,page){
       url:''
     });
   });
-  if(solutions.length===0){
-    var contentHtml=$('#content').html()||'';
-    contentHtml=contentHtml.replace(/<script[\s\S]*?<\/script>/gi,'').replace(/<style[\s\S]*?<\/style>/gi,'');
-    var text=$('#content').text().trim();
-    if(text){
-      solutions.push({id:'',title:'题解',author:'',time:'',contentHtml:contentHtml,content:text});
-    }
-  }
+  // 没有找到题解时，不创建假条目（返回空数组，上层显示"暂无题解"）
   var currentPage=(page||0)+1,totalPages=1;
   var paginationP=contentDiv.find('p[align="center"]').first();
   if(paginationP.length){
@@ -2550,16 +2583,15 @@ function parseRanklist(html, baseUrl, requestedPage) {
         if(pguess>maxP)maxP=pguess;
       }
     });
-    tp=Math.max(maxP,1,cp);
     if(!requestedPage){
       var curM=pagiP.text().match(/第\s*(\d+)\s*页/);
       if(curM&&curM[1]){cp=parseInt(curM[1]);}
       else{
         var firstPageMatch=firstHref.match(/page=(\d+)/);
         if(firstPageMatch){cp=parseInt(firstPageMatch[1])||1;}
-        if(tp>=2&&cp>=tp){cp=1;}
       }
     }
+    tp=Math.max(maxP,1,cp);
   }
   return{records:records,currentPage:cp,totalPages:tp};
 }

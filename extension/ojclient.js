@@ -167,7 +167,7 @@ async function checkStatus(cookie) {
   try {
     const baseUrl = getBaseUrl();
     const url = baseUrl + '/OnlineJudge/';
-    // 检查缓存（检查状态不需要太频繁）
+    // 检查缓存
     var cached = _cacheGet(url + '__checkStatus', cookie);
     if (cached) return cached;
     
@@ -184,18 +184,58 @@ async function checkStatus(cookie) {
     const buffer = await response.buffer();
     const html = iconv.decode(buffer, 'utf8');
     
+    // 调试日志：输出请求和响应
+    console.log('[checkStatus] 请求 URL:', url);
+    console.log('[checkStatus] Cookie 头值:', cookie);
+    console.log('[checkStatus] Cookie 格式检查:', cookie.indexOf('=') >= 0 ? '有 = 号，格式正确' : '无 = 号，请确保输入完整的 Cookie（如 PHPSESSID=xxx）');
+    console.log('[checkStatus] 响应状态:', response.status);
+    console.log('[checkStatus] 响应 HTML:', html.substring(0, 10000));
+    
+    // 核心判断：cookie 有效时页面不会是登录页
+    // 登录页通常包含 login 关键词、登录表单等
+    var isLoginPage = /login|登录|请先登录/i.test(html.substring(0, 2000));
+    var hasLogoutLink = /logout|退出/i.test(html);
+    
+    // 若页面明显是登录页 → cookie 无效
+    if (!hasLogoutLink && isLoginPage) {
+      _cacheSet(url + '__checkStatus', cookie, { isLoggedIn: false, username: '' });
+      return { isLoggedIn: false, username: '' };
+    }
+    
+    // Cookie 有效：尝试提取当前登录用户名
     const $ = cheerio.load(html);
     let username = '';
     
-    const userLink = $('a[href*="user_show.php"]').first();
-    if (userLink.length > 0) {
-      username = userLink.text().trim();
+    // 1. 优先找 "欢迎" 附近的用户链接
+    var bodyText = $('body').text();
+    var welcomeMatch = bodyText.match(/欢迎[您你，,]\s*([^\s，,<]{1,30})/);
+    if (welcomeMatch) {
+      var possibleName = welcomeMatch[1].replace(/[\(\)（我）]/g, '').trim();
+      $('a[href*="user_show.php"]').each(function() {
+        var t = $(this).text().trim();
+        if (t.indexOf(possibleName) >= 0 || possibleName.indexOf(t) >= 0) {
+          username = t;
+          return false;
+        }
+      });
+    }
+    // 2. 取第一个不在表格里的 user_show 链接（排除提交记录中的其他用户）
+    if (!username) {
+      $('a[href*="user_show.php"]').each(function() {
+        if ($(this).closest('#tablelist, table').length) return true;
+        username = $(this).text().trim();
+        return false;
+      });
+    }
+    // 3. 兜底：取第一个 user_show 链接
+    if (!username) {
+      var link = $('a[href*="user_show.php"]').first();
+      if (link.length) username = link.text().trim();
     }
     
-    var result = { isLoggedIn: username.length > 0, username: username };
-    // 缓存 3 秒
+    var result = { isLoggedIn: true, username: username || '未知用户' };
     _cacheSet(url + '__checkStatus', cookie, result);
-    _cacheSet(url, cookie, html); // 同时缓存主页 HTML
+    _cacheSet(url, cookie, html);
     
     return result;
   } catch (error) {

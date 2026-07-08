@@ -22,10 +22,13 @@ const {
   getContestResultWebview, getContestStatusWebview,
   getProblemStatusWebview,
   getProblemSetListWebview, getProblemSetDetailWebview,
-  getProblemSetEditorWebview, getRanklistWebview
+  getProblemSetEditorWebview, getRanklistWebview,
+  getCreateProblemWebview, getEditProblemWebview, getEditProblemDataWebview,
+  getTestDataListWebview, getUpdateUserInfoWebview,
+  getTestDataConfigWebview
 } = require('./webview');
 const { handleSendToCPH, handleCreateContestFolder, handleSubmitCode, getMap, saveMap, registerMapPath, periodicCheckAllMaps } = require('./handle');
-const { mdToHtml, mdLatexToHtml, htmlToMdLatex } = require('./md-latex');
+const { mdToHtml, mdLatexToHtml, mdLatexToHtmlForYzoj, htmlToMdLatex } = require('./md-latex');
 const path = require('path');
 const fs = require('fs');
 const fetch = require('node-fetch');
@@ -33,6 +36,70 @@ const { AbortSignal } = require('node-abort-controller');
 /* global setTimeout, setInterval, clearInterval */
 
 function esc(t) { if (!t) return ''; return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;'); }
+
+// ===== ZIP 测试数据解析 =====
+function parseTestDataFromZip(zipPath, inputExt, outputExt) {
+  inputExt = inputExt || 'in';
+  outputExt = outputExt || 'out';
+  var AdmZip = require('adm-zip');
+  var zip = new AdmZip(zipPath);
+  var entries = zip.getEntries();
+  var allFiles = [];
+  for (var i = 0; i < entries.length; i++) {
+    if (!entries[i].isDirectory) {
+      allFiles.push(entries[i].entryName.replace(/\\/g, '/'));
+    }
+  }
+  var inExt = '.' + inputExt;
+  var outExt = '.' + outputExt;
+  var inFiles = allFiles.filter(function(f) { return f.endsWith(inExt); });
+  var outFiles = allFiles.filter(function(f) { return f.endsWith(outExt); });
+  var inMap = {};
+  for (var i = 0; i < inFiles.length; i++) {
+    var f = inFiles[i];
+    var base = f.slice(0, -inExt.length);
+    inMap[base] = f;
+  }
+  var pairs = [];
+  for (var i = 0; i < outFiles.length; i++) {
+    var f = outFiles[i];
+    var base = f.slice(0, -outExt.length);
+    if (inMap[base]) {
+      pairs.push({ in: inMap[base], out: f, base: base });
+      delete inMap[base];
+    }
+  }
+  // 最长公共前缀
+  function longestCommonPrefix(strs) {
+    if (!strs || strs.length === 0) return '';
+    var prefix = strs[0];
+    for (var i = 1; i < strs.length; i++) {
+      while (strs[i].indexOf(prefix) !== 0) {
+        prefix = prefix.slice(0, -1);
+        if (prefix === '') return '';
+      }
+    }
+    return prefix;
+  }
+  var bases = pairs.map(function(p) { return p.base; });
+  var prefix = longestCommonPrefix(bases);
+  for (var i = 0; i < pairs.length; i++) {
+    pairs[i].sortKey = pairs[i].base.slice(prefix.length);
+  }
+  pairs.sort(function(a, b) {
+    var numA = /^\d+$/.test(a.sortKey);
+    var numB = /^\d+$/.test(b.sortKey);
+    if (numA && numB) return parseInt(a.sortKey, 10) - parseInt(b.sortKey, 10);
+    if (numA) return -1;
+    if (numB) return 1;
+    if (a.sortKey < b.sortKey) return -1;
+    if (a.sortKey > b.sortKey) return 1;
+    return 0;
+  });
+  return pairs.map(function(p) {
+    return { inFile: p.in, outFile: p.out };
+  });
+}
 
 // 调试日志写入 logs/ 文件夹
 var _debugLogFile = null;
@@ -82,8 +149,28 @@ async function getUserCardData(username, uid) {
     if (uid) params.set('uid', uid);
     else if (username) params.set('username', username);
     const cardData = await proxyFetch('/api/user/profile/card?' + params.toString());
+    // 验证 ojserver card API 返回的用户是否存在
     if (cardData && cardData.username) {
-      cardResult = cardData;
+      var _cardHasData = !!(cardData.bio || cardData.avatar_url || cardData.header_image_url || cardData.solved_count);
+      if (cardData.exists_in_ojs === false && !_cardHasData) {
+        logger.log('[getUserCardData] card reports user does not exist (exists_in_ojs=false, no data)');
+      } else {
+        cardResult = cardData;
+        // 解析 proxy 返回的相对路径 URL（头像、头图需要完整 URL）
+        var proxyBase = getProxyUrl();
+        if (cardResult.avatar_url && cardResult.avatar_url.indexOf('://') < 0) {
+          cardResult.avatar_url = proxyBase.replace(/\/+$/, '') + '/' + cardResult.avatar_url.replace(/^\/+/, '');
+        }
+        if (cardResult.avatarUrl && cardResult.avatarUrl.indexOf('://') < 0) {
+          cardResult.avatarUrl = proxyBase.replace(/\/+$/, '') + '/' + cardResult.avatarUrl.replace(/^\/+/, '');
+        }
+        if (cardResult.header_image_url && cardResult.header_image_url.indexOf('://') < 0) {
+          cardResult.header_image_url = proxyBase.replace(/\/+$/, '') + '/' + cardResult.header_image_url.replace(/^\/+/, '');
+        }
+        if (cardResult.header_url && cardResult.header_url.indexOf('://') < 0) {
+          cardResult.header_url = proxyBase.replace(/\/+$/, '') + '/' + cardResult.header_url.replace(/^\/+/, '');
+        }
+      }
     } else {
     }
   } catch(e) {
@@ -199,6 +286,9 @@ async function getUserCardData(username, uid) {
         }
         if (cardResult.permission_level && !data.permission_level) {
           data.permission_level = cardResult.permission_level;
+        }
+        if (!data.permission_level && data.permission) {
+          data.permission_level = parseInt(data.permission) || 0;
         }
       }
       // 再次统一 color/user_color 字段，保证无论 profile/full 还是 webview 都能正确读取
@@ -416,7 +506,12 @@ function getProxyUrl() {
 async function proxyFetch(path, options = {}) {
   const fetch = require('node-fetch');
   try {
-    const resp = await fetch(getProxyUrl() + path, { timeout: 10000, ...options, headers: { 'Content-Type': 'application/json', ...options.headers } });
+    const hdrs = { 
+      'Content-Type': 'application/json', 
+      'X-YZOJ-Token': globalCookie || '',
+      ...options.headers 
+    };
+    const resp = await fetch(getProxyUrl() + path, { timeout: 10000, ...options, headers: hdrs });
     const body = await resp.json();
     return body;
   } catch (e) { logger.log('Proxy error:', path, e.message); return null; }
@@ -847,6 +942,7 @@ async function loadHomepage(panel, baseUrl, cookie) {
     panel.webview.onDidReceiveMessage(msg => {
       if (msg.command == 'fetchImage') { handleFetchImage(panel, msg); return; }
       if (msg.command == 'downloadFile') { handleDownloadFile(panel, msg); return; }
+      if (msg.command == 'showAlert') { vscode.window.showInformationMessage(msg.message); return; }
       if (msg.command == 'openExternal') {
         var _extUrl = msg.url;
         if (_extUrl.startsWith('vscode-webview://')) {
@@ -933,6 +1029,7 @@ async function renderProblemList(panel, baseUrl) {
 
   const data = {
     problems: mapped, currentPage: sr ? (sr.page || 1) : 1, totalPages: sr ? (sr.total_pages || 1) : 1,
+    canCreateProblem: sr ? sr.canCreateProblem : false,
     allTags: searchState.allTags || [], selectedTags: searchState.selectedTags || [],
     currentKeyword: searchState.opts.keyword || '', currentSort: searchState.opts.sort_by || 'id',
     currentOrder: searchState.opts.sort_order || 'asc'
@@ -950,12 +1047,13 @@ async function _fetchProblemListPage(baseUrl, cookie, tagId, page, orderBy, sort
       url += '&name=' + encodeURIComponent(keyword);
     }
     const html = await gethtml(url, cookie);
-    if (!html) return { problems: [], currentPage: parseInt(page || 1), totalPages: 1, total: 0 };
+    if (!html) return { problems: [], currentPage: parseInt(page || 1), totalPages: 1, total: 0, canCreateProblem: false };
     const parsed = parseProblemListPage(html, baseUrl);
     return {
       problems: (parsed && parsed.problems) ? parsed.problems : [],
       currentPage: parsed.currentPage ? parseInt(parsed.currentPage) : parseInt(page || 1),
-      totalPages: parsed.totalPages ? parseInt(parsed.totalPages) : 1
+      totalPages: parsed.totalPages ? parseInt(parsed.totalPages) : 1,
+      canCreateProblem: html.indexOf('problem_insert.php') >= 0
     };
   } catch (e) {
     return { problems: [], currentPage: parseInt(page || 1), totalPages: 1, total: 0 };
@@ -963,13 +1061,10 @@ async function _fetchProblemListPage(baseUrl, cookie, tagId, page, orderBy, sort
 }
 
 async function _ensureTagsLoaded(baseUrl) {
-  if (searchState.allTags && searchState.allTags.length > 0) return searchState.allTags;
   try {
     const tagHtml = await gethtml(baseUrl + '/OnlineJudge/tag_list.php', globalCookie);
     const tagParsed = parseTagList(tagHtml, baseUrl);
-    // Convert parseTagList {id, name, count}[] into array of tag *names* (UI expects strings, matches prev behavior)
-    // But keep id/name mapping in _tagNameToId so doSearch can translate selectedTags (names) -> ids
-    searchState._tagMap = {}; // name -> id
+    searchState._tagMap = {};
     searchState.allTags = (tagParsed && tagParsed.tags ? tagParsed.tags : []).map(function(t) {
       searchState._tagMap[t.name] = t.id;
       if (t.count) searchState._tagMap[t.name + '__count'] = t.count;
@@ -1016,6 +1111,7 @@ async function doSearch(opts, selectedTags, baseUrl) {
 
   var mergedById = new Map(); // problemId -> problem object
   var totalPages = 1;
+  var canCreateProblem = false;
 
   if (tagIdsToFetch.length === 0) {
     // Single fetch: no tag filter
@@ -1025,6 +1121,7 @@ async function doSearch(opts, selectedTags, baseUrl) {
       if (!p.isHidden) mergedById.set(String(p.id), p);
     });
     totalPages = one.totalPages || 1;
+    canCreateProblem = one.canCreateProblem;
   } else if (tagIdsToFetch.length === 1) {
     // Single tag fetch: preserves native pagination
     var oneT = await _fetchProblemListPage(baseUrl, globalCookie, tagIdsToFetch[0], opts.page, orderBy, sortOrder, keyword);
@@ -1033,6 +1130,7 @@ async function doSearch(opts, selectedTags, baseUrl) {
       if (!p.isHidden) mergedById.set(String(p.id), p);
     });
     totalPages = oneT.totalPages || 1;
+    canCreateProblem = oneT.canCreateProblem;
   } else {
     // Multi-tag union (OR logic): crawl each tag's first page, merge by problem id
     // (To keep it simple, always fetch page 1 for all tags when combining multiple tags)
@@ -1093,7 +1191,8 @@ async function doSearch(opts, selectedTags, baseUrl) {
     problems: filteredList,
     page: opts.page,
     total_pages: totalPages,
-    total: filteredList.length
+    total: filteredList.length,
+    canCreateProblem: canCreateProblem
   };
   return searchState.result;
 }
@@ -1150,6 +1249,7 @@ async function loadSolutions(panel, problemId, baseUrl) {
       panel._solutionMsgHandler = panel.webview.onDidReceiveMessage(msg => {
         if (msg.command == 'fetchImage') { handleFetchImage(panel, msg); return; }
         if (msg.command == 'downloadFile') { handleDownloadFile(panel, msg); return; }
+        if (msg.command == 'showAlert') { vscode.window.showInformationMessage(msg.message); return; }
         if (msg.command == 'openSolution') {
           vscode.commands.executeCommand('yzoj.openSolutionDetail', msg.id);
         }
@@ -1190,6 +1290,18 @@ async function loadSolutions(panel, problemId, baseUrl) {
             const tags = await getUserTags(msg.username, msg.uid);
             panel.webview.postMessage({ command: 'userTagsData', username: msg.username, uid: msg.uid, tags: tags });
           })();
+        }
+        if (msg.command == 'backToProblemList') {
+          vscode.commands.executeCommand('yzoj.showProblemList');
+        }
+        if (msg.command == 'editProblem') {
+          vscode.commands.executeCommand('yzoj.editProblem', msg.problemId);
+        }
+        if (msg.command == 'viewTestData') {
+          vscode.commands.executeCommand('yzoj.viewTestData', msg.problemId);
+        }
+        if (msg.command == 'editProblemData') {
+          vscode.commands.executeCommand('yzoj.editProblemData', msg.problemId);
         }
       });
     }
@@ -1266,6 +1378,7 @@ async function loadDiscussions(panel, problemId, baseUrl) {
       panel._discussionMsgHandler = panel.webview.onDidReceiveMessage(msg => {
         if (msg.command == 'fetchImage') { handleFetchImage(panel, msg); return; }
         if (msg.command == 'downloadFile') { handleDownloadFile(panel, msg); return; }
+        if (msg.command == 'showAlert') { vscode.window.showInformationMessage(msg.message); return; }
         if (msg.command == 'openDiscussion') {
           vscode.commands.executeCommand('yzoj.openDiscussionDetail', msg.id);
         }
@@ -1373,6 +1486,7 @@ async function loadDiscussionList(panel, page, baseUrl, opts) {
     panel._discussionListMsgHandler = panel.webview.onDidReceiveMessage(msg => {
       if (msg.command == 'fetchImage') { handleFetchImage(panel, msg); return; }
       if (msg.command == 'downloadFile') { handleDownloadFile(panel, msg); return; }
+      if (msg.command == 'showAlert') { vscode.window.showInformationMessage(msg.message); return; }
       if (msg.command === 'changeDiscussionPage') {
         const newPage = msg.page !== undefined ? msg.page : (msg.p || 0);
         loadDiscussionList(panel, newPage, baseUrl, opts);
@@ -1468,6 +1582,7 @@ async function loadDiscussionDetail(panel, discussionId, baseUrl, page = 0) {
       logger.log('[FZYZOJ-discussionDetail] msg.command=' + msg.command + ' id=' + (msg.id || msg.did || '') + ' url=' + (msg.url || '').substring(0, 80));
       if (msg.command == 'fetchImage') { handleFetchImage(panel, msg); return; }
       if (msg.command == 'downloadFile') { handleDownloadFile(panel, msg); return; }
+      if (msg.command == 'showAlert') { vscode.window.showInformationMessage(msg.message); return; }
       if (msg.command === 'changeDiscussionPage') {
         loadDiscussionDetail(panel, discussionId, baseUrl, msg.page == null ? 0 : msg.page);
       }
@@ -1513,6 +1628,11 @@ async function loadDiscussionDetail(panel, discussionId, baseUrl, page = 0) {
       if (msg.command == 'openProblemStatus') vscode.commands.executeCommand('yzoj.openProblemStatus', msg.problemId || msg.id);
       if (msg.command == 'openRanklist') vscode.commands.executeCommand('yzoj.showRanklist', msg.url);
       if (msg.command == 'openUserProfile') vscode.commands.executeCommand('yzoj.openUserProfile', msg.uid, msg.username);
+      if (msg.command == 'createProblem') vscode.commands.executeCommand('yzoj.createProblem');
+      if (msg.command == 'editProblem') vscode.commands.executeCommand('yzoj.editProblem', msg.problemId);
+      if (msg.command == 'viewTestData') vscode.commands.executeCommand('yzoj.viewTestData', msg.problemId);
+      if (msg.command == 'editProblemData') vscode.commands.executeCommand('yzoj.editProblemData', msg.problemId);
+      if (msg.command == 'updateUserInfo') vscode.commands.executeCommand('yzoj.updateUserInfo');
       if (msg.command == 'requestUserCard') {
         const data = await getUserCardData(msg.username, msg.uid);
         panel.webview.postMessage({ command: 'userCardData', username: msg.username, uid: msg.uid, data: data || {} });
@@ -1606,13 +1726,9 @@ async function handleEditorSubmit(content, format, extraData, _context, yzoj_url
   // 题解：markdown → HTML + 隐藏标记；讨论：markdown → HTML（无标记）
   let finalContent = content;
   if (format === 'markdown') {
-    if (type === 'solution' || type === 'discussion' || type === 'discussion_reply' || type === 'contest_discussion') {
-      // 题解 & 讨论区讨论（含回复、比赛讨论）：md→html + 隐藏标记，方便后续编辑还原
-      finalContent = mdLatexToHtml(content);
-    } else {
-      // 题目讨论等：md→html，无标记（不支持编辑）
-      finalContent = mdToHtml(content);
-    }
+    // 所有提交到 YZOJ 的内容统一使用 mdLatexToHtmlForYzoj
+    // 自动处理：LaTeX 定界符保留(MathJax)、折叠框 CSS 嵌入、隐藏源码标记(编辑还原)
+    finalContent = mdLatexToHtmlForYzoj(content);
   }
   if (type === 'solution') {
     // 直接 POST 到 YZOJ 的 problem_solve.php
@@ -1807,7 +1923,7 @@ async function saveProblemSet(panel, baseUrl, data) {
       username: usernamep, token: globalCookie,
       title: data.title, is_public: data.is_public,
       description: data.description || '',
-      format: data.format || 'html',
+      format: 'markdown',
       permission: data.permission || 'public',
       password: data.password || '',
       allowed_users: allowedUsers.join(','),
@@ -1827,7 +1943,12 @@ async function saveProblemSet(panel, baseUrl, data) {
     });
     if (res && res.success) {
       vscode.window.showInformationMessage('✅ ' + (data.id?'题单已更新':'题单已创建'));
-      loadProblemSetList(panel, 'public', baseUrl);
+      var targetPsid = data.id || (res.data && res.data.id);
+      if (targetPsid) {
+        vscode.commands.executeCommand('yzoj.openProblemSetDetail', { id: targetPsid, title: data.title });
+      } else {
+        loadProblemSetList(panel, 'public', baseUrl);
+      }
     } else {
       vscode.window.showErrorMessage('❌ ' + ((res && res.message)||'操作失败'));
     }
@@ -1910,8 +2031,10 @@ function activate(ctx) {
         if (status.success) { usernamep = username; globalCookie = status.cookie; vscode.window.showInformationMessage('登录成功: ' + usernamep); checkAndUpdateMaps(); }
         else vscode.window.showErrorMessage('登录失败: ' + (status.msg || '未知错误'));
       }
-    } else if (type == 'cookie 登录') {
-      tmp = await vscode.window.showInputBox({ prompt: 'Cookie:', password: true });
+    } else if (type == 'cookie登录') {
+      tmp = await vscode.window.showInputBox({ prompt: 'Cookie:', password: false });
+      if (!tmp) return;
+      if (tmp.indexOf('=') < 0) tmp = 'PHPSESSID=' + tmp;
       if ((status = (await checkStatus(tmp))).isLoggedIn) { usernamep = status.username; globalCookie = tmp; vscode.window.showInformationMessage('登录成功: ' + usernamep); checkAndUpdateMaps(); }
       else vscode.window.showErrorMessage('登录失败（Cookie无效或已过期）');
     }
@@ -1921,6 +2044,7 @@ function activate(ctx) {
     panel.webview.onDidReceiveMessage(msg => {
       if (msg.command == 'fetchImage') { handleFetchImage(panel, msg); return; }
       if (msg.command == 'downloadFile') { handleDownloadFile(panel, msg); return; }
+      if (msg.command == 'showAlert') { vscode.window.showInformationMessage(msg.message); return; }
       if (msg.command == 'changePage') {
         loadContestList(panel, action, msg.p, yzoj_url, globalCookie, {});
       }
@@ -2000,6 +2124,7 @@ function activate(ctx) {
     panel.webview.onDidReceiveMessage(msg => {
       if (msg.command == 'fetchImage') { handleFetchImage(panel, msg); return; }
       if (msg.command == 'downloadFile') { handleDownloadFile(panel, msg); return; }
+      if (msg.command == 'showAlert') { vscode.window.showInformationMessage(msg.message); return; }
       if (msg.command == 'createContestFolder') {
         handleCreateContestFolder(msg, context, yzoj_url, globalCookie);
         // 注册工作区映射路径到本地存储
@@ -2062,6 +2187,12 @@ function activate(ctx) {
       const detail = parseContestDetail(html, yzoj_url);
       detail.contestId = target.id;
       
+      // 检查权限：无权查看时显示提示并返回
+      if (detail.permission && /无权查看|无权限/.test(detail.permission)) {
+        panel.webview.html = '<div style="text-align:center;padding:50px;color:#d93025"><h2>无权查看此比赛</h2><p style="font-size:14px;color:#666;margin-top:12px">当前账号没有权限查看该比赛的详细信息。</p></div>';
+        vscode.window.showWarningMessage('无权查看此比赛');
+        return;
+      }
       
       if (detail.title) {
         try { panel.title = detail.title; } catch(_e) {}
@@ -2083,6 +2214,7 @@ function activate(ctx) {
       panel.webview.onDidReceiveMessage(msg => {
         if (msg.command == 'fetchImage') { handleFetchImage(panel, msg); return; }
         if (msg.command == 'downloadFile') { handleDownloadFile(panel, msg); return; }
+        if (msg.command == 'showAlert') { vscode.window.showInformationMessage(msg.message); return; }
         if (msg.command == 'openStatusDetail') vscode.commands.executeCommand('yzoj.openStatusDetail', msg.id);
         if (msg.command == 'openProblem') vscode.commands.executeCommand('yzoj.openProblemDetail', { id: msg.id, url: msg.url });
         if (msg.command == 'openUserProfile') vscode.commands.executeCommand('yzoj.openUserProfile', msg.uid, msg.username);
@@ -2218,7 +2350,7 @@ function activate(ctx) {
       // Use new API to get problem set detail with problems
       var apiSet = await proxyFetch('/api/problem_sets/' + psid + '?username=' + encodeURIComponent(currentUsername));
       if (!apiSet || apiSet.error) {
-        const sets = await proxyFetch('/api/problem_sets?action=public&username=' + (usernamep||'') + '&token=' + (globalCookie||''));
+        const sets = await proxyFetch('/api/problem_sets?action=public&username=' + (usernamep||''));
         set = ((sets && sets.problem_sets) || []).find(s => String(s.id) === String(psid));
         if (set && set.problem_ids) {
           const ids = set.problem_ids.split(',').filter(Boolean);
@@ -2251,8 +2383,7 @@ function activate(ctx) {
               body: JSON.stringify({
                 psid: psid,
                 password: password,
-                username: currentUsername,
-                token: globalCookie
+                username: currentUsername
               })
             });
             if (verifyResult && verifyResult.success) {
@@ -2415,6 +2546,23 @@ function activate(ctx) {
     try {
       const html = await gethtml(target.url, globalCookie);
       
+      // 检查题目是否有权限访问或不存在
+      var errorMsg = '';
+      if (/无权查看|您无权查看|无权限/i.test(html)) {
+        errorMsg = '您无权查看此题目';
+      } else if (/题目ID不存在|没有此题目|没有该题目|该题目不存在|不存在该题目/i.test(html)) {
+        errorMsg = '该题目不存在';
+      }
+      if (errorMsg) {
+        if (errorMsg === '您无权查看此题目') {
+          panel.webview.html = '<div style="text-align:center;padding:50px"><h2 style="color:#d93025;font-size:22px;margin-bottom:16px">⚠ 您无权查看此题目</h2><p style="color:#666;font-size:14px;margin:0 0 24px 0">当前账号没有权限查看该题目</p><button onclick="(window.vscodeApi||acquireVsCodeApi()).postMessage({command:\'backToProblemList\'})" style="padding:10px 28px;background:#007acc;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500">← 返回题目列表</button></div>';
+        } else {
+          panel.webview.html = '<div style="text-align:center;padding:50px;color:#d93025"><h2>⚠ ' + errorMsg + '</h2></div>';
+        }
+        vscode.window.showWarningMessage(errorMsg);
+        return;
+      }
+      
       const detail = target.url.includes('problem_show.php') ? parsePracticeProblem(html, yzoj_url) : parseContestProblem(html, yzoj_url);
       detail.url = target.url;
       
@@ -2429,9 +2577,15 @@ function activate(ctx) {
       // 从已获取的 HTML 实时解析 Mark（替代缓存）
       detail.mark = parseProblemPassStatus(html) || '';
       
-      panel.webview.html = getProblemDetailWebview(detail, yzoj_url);
+      // 使用解析器返回的canEdit值（基于原网页是否存在编辑链接）
+      if (detail.canEdit === undefined) {
+        detail.canEdit = false;
+      }
+      
+      panel.webview.html = getProblemDetailWebview(detail, yzoj_url, usernamep);
       panel.webview.onDidReceiveMessage(msg => {
         if (msg.command == 'fetchImage') { handleFetchImage(panel, msg); return; }
+        if (msg.command == 'showAlert') { vscode.window.showInformationMessage(msg.message); return; }
         if (msg.command == 'sendToCPH') handleSendToCPH(msg.problem, panel, context);
         if (msg.command == 'downloadFile') { handleDownloadFile(panel, msg); return; }
         if (msg.command == 'openExternal') {
@@ -2490,6 +2644,7 @@ function activate(ctx) {
           vscode.commands.executeCommand('yzoj.openProblemDetail', { id: msg.problemId, url: yzoj_url + '/OnlineJudge/problem_show.php?id=' + msg.problemId });
         }
         if (msg.command == 'openUserProfile') vscode.commands.executeCommand('yzoj.openUserProfile', msg.uid, msg.username);
+        if (msg.command == 'editProblem') vscode.commands.executeCommand('yzoj.editProblem', msg.problemId);
         if (msg.command == 'requestUserCard') {
           (async () => {
             const data = await getUserCardData(msg.username, msg.uid);
@@ -2641,7 +2796,9 @@ function activate(ctx) {
 
   vscode.commands.registerCommand('yzoj.showProblemList', async () => {
     const panel = panelManager.getOrCreate('problem:list', '在线题库', vscode.ViewColumn.Two, { enableScripts: true, retainContextWhenHidden: true });
-    // Tags + problem list both fetched from YZOJ directly via doSearch
+    panel.webview.html = '<div style="text-align:center;padding:50px;color:#666">少女祈祷中...</div>';
+    // 先加载tag，再设置webview
+    await _ensureTagsLoaded(yzoj_url);
     await doSearch({ sort_by: 'id', sort_order: 'asc', page: 1 }, [], yzoj_url);
     await renderProblemList(panel, yzoj_url);
     panel.webview.onDidReceiveMessage(async (msg) => {
@@ -2651,6 +2808,7 @@ function activate(ctx) {
         await doSearch(msg.opts, msg.selectedTags || [], yzoj_url);
         await renderProblemList(panel, yzoj_url);
       }
+      if (msg.command == 'createProblem') { vscode.commands.executeCommand('yzoj.createProblem'); return; }
       if (msg.command == 'changePage') {
         if (msg.opts) Object.assign(searchState.opts, msg.opts);
         searchState.opts.page = msg.p;
@@ -2665,10 +2823,12 @@ function activate(ctx) {
           const randomPage = Math.floor(Math.random() * totalPages) + 1;
           const pageData = await _fetchProblemListPage(yzoj_url, globalCookie, null, randomPage, 'id', 'asc');
           const probList = pageData.problems || [];
-          if (probList.length > 0) {
-            const ridx = Math.floor(Math.random() * probList.length);
-            const rid = probList[ridx].id;
-            const rurl = probList[ridx].url || (yzoj_url + '/OnlineJudge/problem_show.php?id=' + rid);
+          // 过滤掉被隐藏的题目
+          const visibleProbs = probList.filter(function(p) { return !p.isHidden; });
+          if (visibleProbs.length > 0) {
+            const ridx = Math.floor(Math.random() * visibleProbs.length);
+            const rid = visibleProbs[ridx].id;
+            const rurl = visibleProbs[ridx].url || (yzoj_url + '/OnlineJudge/problem_show.php?id=' + rid);
             vscode.commands.executeCommand('yzoj.openProblemDetail', { id: rid, url: rurl });
           } else {
             vscode.window.showWarningMessage('随机跳题失败：未找到题目');
@@ -2764,7 +2924,8 @@ function activate(ctx) {
         const _uid = await vscode.window.showInputBox({
           prompt: '请输入用户 UID',
           placeHolder: '例如: 2953',
-          ignoreFocusOut: true
+          ignoreFocusOut: true,
+          validateInput: function(v) { return /^\d+$/.test(v.trim()) ? null : 'UID 只能包含数字'; }
         });
         if (!_uid) return;
         uid = String(_uid).trim();
@@ -2799,7 +2960,7 @@ function activate(ctx) {
         const params = new URLSearchParams();
         if (uid) params.set('uid', uid);
         else if (username) params.set('username', username);
-        params.set('months', '6');
+        params.set('months', '12');
         // Reasonable timeout since we no longer crawl first-AC pages
         const fetch = require('node-fetch');
         const headers = { 'Content-Type': 'application/json' };
@@ -2812,8 +2973,15 @@ function activate(ctx) {
         });
         if (resp.ok) {
           const fullProfile = await resp.json();
+          // 验证 ojserver 返回的用户是否存在：需要 exists_in_ojs 为 true，或有有效用户名/ID
           if (fullProfile && (fullProfile.username || fullProfile.uid || fullProfile.id)) {
-            userData = fullProfile;
+            // 如果 ojserver 明确说用户不存在（exists_in_ojs=false），且无有效数据，拒绝接受
+            var _ojsHasData = !!(fullProfile.bio || fullProfile.bio_html || fullProfile.avatar_url || fullProfile.header_image_url || fullProfile.solved_count || fullProfile.solvedCount);
+            if (fullProfile.exists_in_ojs === false && !_ojsHasData) {
+              logger.log('[openUserProfile] ojserver reports user does not exist (exists_in_ojs=false, no data)');
+            } else {
+              userData = fullProfile;
+            }
           }
         }
       } catch(_e) {
@@ -2830,7 +2998,22 @@ function activate(ctx) {
             yzojHtml = await gethtml(yzoj_url + '/OnlineJudge/user_show.php?uname=' + encodeURIComponent(username), globalCookie);
           }
           if (yzojHtml) {
+            // 检查 YZOJ 页面是否提示用户不存在
+            if (/用户未找到|用户不存在/.test(yzojHtml)) {
+              // YZOJ 也找不到 → 用户确实不存在
+              userData = null;
+              panel.webview.html = '<div style="text-align:center;padding:50px;color:#d93025">未找到该用户，请检查用户ID或用户名是否正确。</div>';
+              vscode.window.showWarningMessage('未找到该用户');
+              return;
+            }
             const yzojData = parseUserPage(yzojHtml, yzoj_url);
+            if (!yzojData) {
+              // parseUserPage 返回 null（"用户不存在"页面且无有效数据）
+              userData = null;
+              panel.webview.html = '<div style="text-align:center;padding:50px;color:#d93025">未找到该用户，请检查用户ID或用户名是否正确。</div>';
+              vscode.window.showWarningMessage('未找到该用户');
+              return;
+            }
             if (yzojData && yzojData.userHtml) {
               userData.userHtml = yzojData.userHtml;
             }
@@ -2849,18 +3032,46 @@ function activate(ctx) {
           if (uid) params.set('uid', uid);
           else if (username) params.set('username', username);
           const cardData = await proxyFetch('/api/user/profile/card?' + params.toString());
+          // 验证 card API 返回的用户是否存在
           if (cardData && cardData.username) {
-            ojsData = cardData;
+            var _cardHasData = !!(cardData.bio || cardData.avatar_url || cardData.header_image_url || cardData.solved_count);
+            if (cardData.exists_in_ojs === false && !_cardHasData) {
+              logger.log('[openUserProfile] card reports user does not exist (exists_in_ojs=false, no data)');
+            } else {
+              ojsData = cardData;
+            }
           }
         } catch(_e) {}
         
         let html = '';
         if (uid) {
           html = await gethtml(yzoj_url + '/OnlineJudge/user_show.php?id=' + uid, globalCookie);
+          // 检查用户是否存在
+          if (/用户未找到|用户不存在/.test(html)) {
+            panel.webview.html = '<div style="text-align:center;padding:50px;color:#d93025">未找到该用户，请检查用户ID或用户名是否正确。</div>';
+            vscode.window.showWarningMessage('未找到该用户');
+            return;
+          }
           userData = parseUserPage(html, yzoj_url);
+          if (!userData) {
+            panel.webview.html = '<div style="text-align:center;padding:50px;color:#d93025">未找到该用户，请检查用户ID或用户名是否正确。</div>';
+            vscode.window.showWarningMessage('未找到该用户');
+            return;
+          }
         } else if (username) {
           html = await gethtml(yzoj_url + '/OnlineJudge/user_show.php?uname=' + encodeURIComponent(username), globalCookie);
+          // 检查用户是否存在
+          if (/用户未找到|用户不存在/.test(html)) {
+            panel.webview.html = '<div style="text-align:center;padding:50px;color:#d93025">未找到该用户，请检查用户ID或用户名是否正确。</div>';
+            vscode.window.showWarningMessage('未找到该用户');
+            return;
+          }
           userData = parseUserPage(html, yzoj_url);
+          if (!userData) {
+            panel.webview.html = '<div style="text-align:center;padding:50px;color:#d93025">未找到该用户，请检查用户ID或用户名是否正确。</div>';
+            vscode.window.showWarningMessage('未找到该用户');
+            return;
+          }
         }
         
         if (ojsData && userData) {
@@ -2903,6 +3114,18 @@ function activate(ctx) {
         panel.webview.onDidReceiveMessage(msg => {
           if (msg.command == 'fetchImage') { handleFetchImage(panel, msg); return; }
           if (msg.command == 'downloadFile') { handleDownloadFile(panel, msg); return; }
+          if (msg.command == 'openExternal') {
+            var _extUrl4 = msg.url;
+            if (_extUrl4.startsWith('vscode-webview://')) {
+              var _extPath4 = _extUrl4.replace(/^vscode-webview:\/\/[^\/]+/, '');
+              if (_extPath4.startsWith('/OnlineJudge/')) {
+                _extUrl4 = yzoj_url.replace(/\/+$/, '') + _extPath4;
+              } else {
+                _extUrl4 = yzoj_url.replace(/\/+$/, '') + '/OnlineJudge' + _extPath4;
+              }
+            }
+            vscode.env.openExternal(vscode.Uri.parse(_extUrl4));
+          }
           if (msg.command == 'openStatusDetail') vscode.commands.executeCommand('yzoj.openStatusDetail', msg.id);
           if (msg.command == 'openProblem') vscode.commands.executeCommand('yzoj.openProblemDetail', { id: msg.id, url: msg.url });
           if (msg.command == 'openUserProfile') vscode.commands.executeCommand('yzoj.openUserProfile', msg.uid, msg.username);
@@ -3185,6 +3408,11 @@ function activate(ctx) {
         if (msg.command == 'openProblem') vscode.commands.executeCommand('yzoj.openProblemDetail', { id: msg.id, url: msg.url || (yzoj_url + '/OnlineJudge/problem_show.php?id=' + msg.id) });
         if (msg.command == 'openStatusDetail') vscode.commands.executeCommand('yzoj.openStatusDetail', msg.id);
         if (msg.command == 'openUserProfile') vscode.commands.executeCommand('yzoj.openUserProfile', msg.uid, msg.username);
+        if (msg.command == 'createProblem') vscode.commands.executeCommand('yzoj.createProblem');
+        if (msg.command == 'editProblem') vscode.commands.executeCommand('yzoj.editProblem', msg.problemId);
+        if (msg.command == 'viewTestData') vscode.commands.executeCommand('yzoj.viewTestData', msg.problemId);
+        if (msg.command == 'editProblemData') vscode.commands.executeCommand('yzoj.editProblemData', msg.problemId);
+        if (msg.command == 'updateUserInfo') vscode.commands.executeCommand('yzoj.updateUserInfo');
         if (msg.command == 'requestUserCard') {
           (async () => {
             const uData = await getUserCardData(msg.username, msg.uid);
@@ -3202,6 +3430,226 @@ function activate(ctx) {
   });
 
   context.subscriptions.push(showRanklistCmd, openContestResultCmd_new);
+
+  // ===== 创建新题目 =====
+  vscode.commands.registerCommand('yzoj.createProblem', async () => {
+    if (!globalCookie) { vscode.window.showWarningMessage('请先登录'); return; }
+    const panel = panelManager.getOrCreate('problem:create', '创建新题目', vscode.ViewColumn.Two, { enableScripts: true, retainContextWhenHidden: true });
+    panel.webview.html = '<div style="text-align:center;padding:50px;color:#666">少女祈祷中...</div>';
+    // 先加载tag，再设置webview
+    await _ensureTagsLoaded(yzoj_url);
+    panel.webview.html = getCreateProblemWebview(yzoj_url, usernamep);
+    panel.webview.onDidReceiveMessage(msg => {
+      if (msg.command == 'submitCreateProblem') {
+        handleCreateProblem(panel, msg, yzoj_url, globalCookie);
+      }
+    });
+  });
+
+  // ===== 编辑题目 =====
+  vscode.commands.registerCommand('yzoj.editProblem', async (problemId) => {
+    if (!globalCookie) { vscode.window.showWarningMessage('请先登录'); return; }
+    const panel = panelManager.getOrCreate('problem:edit:' + problemId, '编辑题目 #' + problemId, vscode.ViewColumn.Two, { enableScripts: true, retainContextWhenHidden: true });
+    panel.webview.html = '<div style="text-align:center;padding:50px;color:#666">少女祈祷中...</div>';
+    try {
+      const html = await gethtml(yzoj_url + '/OnlineJudge/problem_edit.php?id=' + problemId, globalCookie);
+      // 获取标签列表
+      await _ensureTagsLoaded(yzoj_url);
+      // 把原始HTML发送到前端，前端用CKEditor兼容的标记方式渲染
+      panel.webview.html = getEditProblemWebview(html, problemId, yzoj_url, usernamep, searchState._tagMap);
+    } catch (err) {
+      panel.webview.html = '<div style="text-align:center;padding:50px;color:red">' + err.message + '</div>';
+    }
+    var pendingZipData = null; // 存储上传的 ZIP 数据，提交时与 config 一起打包
+    panel.webview.onDidReceiveMessage(msg => {
+      if (msg.command == 'submitEditProblem') {
+        msg._pendingZipData = pendingZipData;
+        handleEditProblemSubmit(panel, msg, yzoj_url, globalCookie);
+      }
+      if (msg.command == 'cancelEditor') {
+        panel.dispose();
+      }
+      if (msg.command == 'fetchDataConfig') {
+        (async () => {
+          try {
+            var configUrl = yzoj_url + '/OnlineJudge/Data/' + msg.problemId + '/config.json';
+            console.log('[EditData] 获取现有 config:', configUrl);
+            var resp = await fetch(configUrl, { headers: { 'Cookie': globalCookie } });
+            if (resp.ok) {
+              var configText = await resp.text();
+              panel.webview.postMessage({ type: 'dataConfig', config: configText });
+            } else {
+              console.log('[EditData] config.json 不存在或无法访问, status:', resp.status);
+              panel.webview.postMessage({ type: 'dataConfig', config: null });
+            }
+          } catch (e) {
+            console.log('[EditData] 获取 config.json 失败:', e.message);
+            panel.webview.postMessage({ type: 'dataConfig', config: null });
+          }
+        })();
+      }
+      if (msg.command == 'parseZip') {
+        try {
+          pendingZipData = { data: msg.data, fileName: msg.fileName || 'data.zip' };
+          var buffer = Buffer.from(msg.data, 'base64');
+          var AdmZip = require('adm-zip');
+          var zip = new AdmZip(buffer);
+          var entries = zip.getEntries();
+          var allFiles = [];
+          for (var i = 0; i < entries.length; i++) {
+            if (!entries[i].isDirectory) allFiles.push(entries[i].entryName.replace(/\\/g, '/'));
+          }
+          var inFiles = allFiles.filter(function(f) { return f.endsWith('.in'); });
+          var outFiles = allFiles.filter(function(f) { return f.endsWith('.out'); });
+          if (inFiles.length === 0 || outFiles.length === 0) {
+            panel.webview.postMessage({ type: 'parseError', error: 'ZIP 中未找到 .in 或 .out 文件' });
+            return;
+          }
+          var inMap = {};
+          inFiles.forEach(function(f) { inMap[f.slice(0, -3)] = f; });
+          var pairs = [];
+          outFiles.forEach(function(f) {
+            var base = f.slice(0, -4);
+            if (inMap[base]) { pairs.push({ inFile: inMap[base], outFile: f, base: base }); delete inMap[base]; }
+          });
+          if (pairs.length === 0) {
+            panel.webview.postMessage({ type: 'parseError', error: '未找到匹配的 .in/.out 文件对' });
+            return;
+          }
+          function lcp(strs) {
+            if (!strs || strs.length === 0) return '';
+            var p = strs[0];
+            for (var i = 1; i < strs.length; i++) { while (strs[i].indexOf(p) !== 0) p = p.slice(0, -1); }
+            return p;
+          }
+          var prefix = lcp(pairs.map(function(p) { return p.base; }));
+          pairs.forEach(function(p) { p.sortKey = p.base.slice(prefix.length); });
+          pairs.sort(function(a, b) {
+            var nA = /^\d+$/.test(a.sortKey);
+            var nB = /^\d+$/.test(b.sortKey);
+            if (nA && nB) return parseInt(a.sortKey, 10) - parseInt(b.sortKey, 10);
+            if (nA) return -1; if (nB) return 1;
+            return a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0;
+          });
+          var testPoints = pairs.map(function(p) {
+            return { inFile: p.inFile, outFile: p.outFile, time: 1.0, subtask: 0, score: 0, hack: false, depends: [] };
+          });
+          console.log('[EditData] ZIP 解析完成:', testPoints.length, '个测试点');
+          testPoints.forEach(function(tp, idx) {
+            console.log('  [' + (idx + 1) + '] ' + tp.inFile + '  +  ' + tp.outFile);
+          });
+          panel.webview.postMessage({ type: 'parseResult', testPoints: testPoints, fileName: msg.fileName || 'data.zip' });
+        } catch (err) {
+          console.error('[EditData] ZIP 解析错误:', err.message);
+          panel.webview.postMessage({ type: 'parseError', error: err.message });
+        }
+      }
+    });
+  });
+
+  // ===== 编辑题目数据 =====
+  vscode.commands.registerCommand('yzoj.editProblemData', async (problemId) => {
+    if (!globalCookie) { vscode.window.showWarningMessage('请先登录'); return; }
+    const panel = panelManager.getOrCreate('problem:editdata:' + problemId, '编辑数据 #' + problemId, vscode.ViewColumn.Two, { enableScripts: true, retainContextWhenHidden: true });
+    panel.webview.html = getEditProblemDataWebview(problemId, yzoj_url, usernamep);
+    panel.webview.onDidReceiveMessage(msg => {
+      // 处理数据编辑相关消息
+    });
+  });
+
+  // ===== 查看测试数据 =====
+  vscode.commands.registerCommand('yzoj.viewTestData', async (problemId) => {
+    if (!globalCookie) { vscode.window.showWarningMessage('请先登录'); return; }
+    const panel = panelManager.getOrCreate('problem:testdata:' + problemId, '测试数据 #' + problemId, vscode.ViewColumn.Two, { enableScripts: true, retainContextWhenHidden: true });
+    try {
+      const html = await gethtml(yzoj_url + '/OnlineJudge/problem_show.php?id=' + problemId, globalCookie);
+      panel.webview.html = getTestDataListWebview(html, problemId, yzoj_url, usernamep);
+    } catch (err) {
+      panel.webview.html = '<div style="text-align:center;padding:50px;color:red">' + err.message + '</div>';
+    }
+  });
+
+  // ===== 题目数据配置 =====
+  vscode.commands.registerCommand('yzoj.testDataConfig', async () => {
+    const panel = panelManager.getOrCreate('problem:testDataConfig', '题目数据配置', vscode.ViewColumn.One, { enableScripts: true, retainContextWhenHidden: true });
+    // 处置旧的消息处理器，避免重复注册
+    if (panel._testDataConfigHandler) panel._testDataConfigHandler.dispose();
+    panel._testDataConfigHandler = panel.webview.onDidReceiveMessage(async (message) => {
+      if (message.type === 'parseZip') {
+        try {
+          var buffer = Buffer.from(message.data, 'base64');
+          var AdmZip = require('adm-zip');
+          var zip = new AdmZip(buffer);
+          var entries = zip.getEntries();
+          var allFiles = [];
+          for (var i = 0; i < entries.length; i++) {
+            if (!entries[i].isDirectory) allFiles.push(entries[i].entryName.replace(/\\/g, '/'));
+          }
+          var inFiles = allFiles.filter(function(f) { return f.endsWith('.in'); });
+          var outFiles = allFiles.filter(function(f) { return f.endsWith('.out'); });
+          if (inFiles.length === 0 || outFiles.length === 0) {
+            panel.webview.postMessage({ type: 'parseError', error: 'ZIP 中未找到 .in 或 .out 文件' });
+            return;
+          }
+          var inMap = {};
+          inFiles.forEach(function(f) { inMap[f.slice(0, -3)] = f; });
+          var pairs = [];
+          outFiles.forEach(function(f) {
+            var base = f.slice(0, -4);
+            if (inMap[base]) { pairs.push({ inFile: inMap[base], outFile: f, base: base }); delete inMap[base]; }
+          });
+          if (pairs.length === 0) {
+            panel.webview.postMessage({ type: 'parseError', error: '未找到匹配的 .in/.out 文件对' });
+            return;
+          }
+          // 最长公共前缀
+          function lcp(strs) {
+            if (!strs || strs.length === 0) return '';
+            var p = strs[0];
+            for (var i = 1; i < strs.length; i++) { while (strs[i].indexOf(p) !== 0) p = p.slice(0, -1); }
+            return p;
+          }
+          var prefix = lcp(pairs.map(function(p) { return p.base; }));
+          pairs.forEach(function(p) { p.sortKey = p.base.slice(prefix.length); });
+          pairs.sort(function(a, b) {
+            var nA = /^\d+$/.test(a.sortKey);
+            var nB = /^\d+$/.test(b.sortKey);
+            if (nA && nB) return parseInt(a.sortKey, 10) - parseInt(b.sortKey, 10);
+            if (nA) return -1; if (nB) return 1;
+            return a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0;
+          });
+          var testPoints = pairs.map(function(p) {
+            return { inFile: p.inFile, outFile: p.outFile, time: 1.0, memory: 256, subtask: 0, score: 0, hack: false, depends: [] };
+          });
+          console.log('[TestDataConfig] 从 ZIP 中提取的文件列表:');
+          testPoints.forEach(function(tp, idx) {
+            console.log('  [' + (idx + 1) + '] ' + tp.inFile + '  +  ' + tp.outFile);
+          });
+          panel.webview.postMessage({ type: 'parseResult', testPoints: testPoints, fileName: message.fileName || 'data.zip' });
+        } catch (err) {
+          panel.webview.postMessage({ type: 'parseError', error: err.message });
+        }
+      }
+    });
+    panel.webview.html = getTestDataConfigWebview();
+  });
+
+  // ===== 更新用户信息 =====
+  vscode.commands.registerCommand('yzoj.updateUserInfo', async () => {
+    if (!globalCookie) { vscode.window.showWarningMessage('请先登录'); return; }
+    const panel = panelManager.getOrCreate('user:update', '更新信息', vscode.ViewColumn.Two, { enableScripts: true, retainContextWhenHidden: true });
+    try {
+      const html = await gethtml(yzoj_url + '/OnlineJudge/user_update.php', globalCookie);
+      panel.webview.html = getUpdateUserInfoWebview(html, yzoj_url, usernamep);
+    } catch (err) {
+      panel.webview.html = '<div style="text-align:center;padding:50px;color:red">' + err.message + '</div>';
+    }
+    panel.webview.onDidReceiveMessage(msg => {
+      if (msg.command == 'submitUpdateUserInfo') {
+        handleUpdateUserInfo(panel, msg, yzoj_url, globalCookie);
+      }
+    });
+  });
 
   // 注册当前工作区映射路径到本地存储追踪
   const wsRoot = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
@@ -3230,6 +3678,278 @@ function activate(ctx) {
   const yzojCommandProvider = new YZOJCommandTreeProvider();
   vscode.window.registerTreeDataProvider('yzojCommands', yzojCommandProvider);
   context.subscriptions.push(yzojCommandProvider);
+}
+
+// ===== 处理函数 =====
+
+// 处理创建新题目提交
+async function handleCreateProblem(panel, msg, baseUrl, cookie) {
+  try {
+    // 先 GET problem_insert.php 获取自动分配的题目编号
+    var insertPage = await gethtml(baseUrl + '/OnlineJudge/problem_insert.php', cookie);
+    var pidMatch = insertPage.match(/name="pid"\s+value="(\d+)"/);
+    var pid = pidMatch ? pidMatch[1] : '';
+    if (!pid) {
+      // 尝试另一种匹配方式
+      var pidMatch2 = insertPage.match(/name="pid"[^>]*value="(\d+)"/);
+      pid = pidMatch2 ? pidMatch2[1] : '';
+    }
+    // POST 提交创建题目
+    var body = new URLSearchParams();
+    body.set('pname', msg.pname || '');
+    body.set('pid', pid);
+    body.set('showmark', msg.showmark || '2');
+    body.set('prop_uname', msg.prop_uname || '');
+    body.set('referer', baseUrl + '/OnlineJudge/problem_list.php');
+    body.set('submit', '提交');
+    var result = await posthtml(baseUrl + '/OnlineJudge/problem_insert.php', cookie, body.toString());
+    panel.webview.postMessage({ command: 'submitResult', success: true, message: '题目创建成功！编号: ' + pid });
+  } catch (e) {
+    panel.webview.postMessage({ command: 'submitResult', success: false, message: '创建失败: ' + e.message });
+  }
+}
+
+// 处理编辑题目提交
+async function handleEditProblemSubmit(panel, msg, baseUrl, cookie) {
+  try {
+    const http = require('http');
+    const https = require('https');
+    const fetch = require('node-fetch');
+    
+    // 构建 multipart/form-data 请求体（使用 Buffer 以支持二进制文件上传）
+    var boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2) + Math.random().toString(36).substring(2);
+    var bodyChunks = [];
+    
+    function addField(name, value) {
+      bodyChunks.push(Buffer.from('--' + boundary + '\r\n'));
+      bodyChunks.push(Buffer.from('Content-Disposition: form-data; name="' + name + '"\r\n\r\n'));
+      bodyChunks.push(Buffer.from(String(value || '') + '\r\n'));
+    }
+    
+    function addFile(name, filename, contentBuffer) {
+      bodyChunks.push(Buffer.from('--' + boundary + '\r\n'));
+      bodyChunks.push(Buffer.from('Content-Disposition: form-data; name="' + name + '"; filename="' + filename + '"\r\n'));
+      bodyChunks.push(Buffer.from('Content-Type: application/octet-stream\r\n\r\n'));
+      if (contentBuffer) {
+        bodyChunks.push(contentBuffer);
+      }
+      bodyChunks.push(Buffer.from('\r\n'));
+    }
+    
+    // 处理数据文件：从用户上传的 ZIP 或从 YZOJ 下载原始数据包，替换 config.json
+    var dataFileBuffer = null;
+    var dataFileName = 'data.zip';
+    var hasValidConfig = false;
+    var configText = '';
+    if (msg.config && msg.config.trim()) {
+      try {
+        configText = msg.config.trim();
+        var parsed = JSON.parse(configText);
+        if (parsed && (parsed.cases || parsed.score_map || Object.keys(parsed).length > 0)) {
+          hasValidConfig = true;
+        }
+      } catch (e) { }
+    }
+    var _httpsAgent = new https.Agent({ keepAlive: true, rejectUnauthorized: false });
+    var _httpAgent = new http.Agent({ keepAlive: true });
+    var shouldProcessData = !!(msg._pendingZipData || (hasValidConfig && msg.dataConfigDirty));
+    if (shouldProcessData) {
+      try {
+        var AdmZip = require('adm-zip');
+        var baseZip = null;
+        if (msg._pendingZipData) {
+          // 用户上传了新 ZIP，以此为基准
+          baseZip = new AdmZip(Buffer.from(msg._pendingZipData.data, 'base64'));
+          dataFileName = msg._pendingZipData.fileName || 'data.zip';
+          console.log('[EditProblem] 使用用户上传的数据包');
+        } else if (hasValidConfig && msg.dataConfigDirty) {
+          // config 被修改过 → 从 YZOJ 下载原始数据包
+          console.log('[EditProblem] config 已修改，从 YZOJ 下载原始数据包...');
+          var dataUrl = baseUrl + '/OnlineJudge/Data/Data_P' + msg.problemId + '.zip';
+          var dataAgent = dataUrl.startsWith('https') ? _httpsAgent : _httpAgent;
+          var dataResp = await fetch(dataUrl, { headers: { 'Cookie': cookie }, agent: dataAgent });
+          if (dataResp.ok) {
+            var dataBuffer = await dataResp.buffer();
+            baseZip = new AdmZip(dataBuffer);
+            console.log('[EditProblem] 原始数据包下载成功，大小:', dataBuffer.length, '字节');
+          } else {
+            console.warn('[EditProblem] 下载原始数据包失败, status:', dataResp.status);
+          }
+        }
+        if (baseZip && hasValidConfig) {
+          // 使用 adm-zip 的 deleteFile 直接删除旧 config，避免逐文件解压再压缩（大数据包时性能关键）
+          try { baseZip.deleteFile('config.json'); } catch (e) {}
+          try { baseZip.deleteFile('config.ini'); } catch (e) {}
+          // 也尝试删除子目录中的 config 文件（先查找再删除）
+          var entries = baseZip.getEntries();
+          for (var ei = 0; ei < entries.length; ei++) {
+            var entryName = entries[ei].entryName.replace(/\\/g, '/');
+            if (entryName !== 'config.json' && entryName !== 'config.ini' && (entryName.endsWith('/config.json') || entryName.endsWith('/config.ini'))) {
+              try { baseZip.deleteFile(entryName); } catch (e) {}
+            }
+          }
+          // 添加新 config.json 到根目录
+          baseZip.addFile('config.json', Buffer.from(configText, 'utf8'));
+          dataFileBuffer = baseZip.toBuffer();
+          console.log('[EditProblem] config.json 已替换，新数据包大小:', dataFileBuffer.length, '字节');
+        } else if (baseZip) {
+          dataFileBuffer = baseZip.toBuffer();
+        }
+      } catch (e) {
+        console.warn('[EditProblem] 处理数据包失败:', e.message);
+      }
+    } else {
+      console.log('[EditProblem] 数据未变更，跳过数据文件处理');
+    }
+    
+    // 严格按照 fetch 示例的字段顺序
+    addField('pname', msg.pname || '');
+    addField('prop_uname', msg.prop_uname || '');
+    addField('lev', msg.lev || '1');
+    if (msg.tags) {
+      var tagArr = msg.tags.split(',');
+      tagArr.forEach(function(tagId) {
+        if (tagId) addField('tags[]', tagId);
+      });
+    }
+    addField('timelimit', msg.timelimit || '1000');
+    addField('memorylimit', msg.memorylimit || '262144');
+    addField('showmark', msg.showmark || '0');
+    if (msg.judgemark) addField('judgemark', 'OK');
+    addField('cflags', msg.cflags || '');
+    addField('pasflags', msg.pasflags || '');
+    addField('description', mdLatexToHtmlForYzoj(msg.description || ''));
+    addField('inputformat', mdLatexToHtmlForYzoj(msg.inputformat || ''));
+    addField('outputformat', mdLatexToHtmlForYzoj(msg.outputformat || ''));
+    if (msg.samples) {
+      try {
+        var samples = JSON.parse(msg.samples);
+        // 仅在 samples 有实际数据时才发送，避免发送空字段导致 YZOJ 清空已有样例
+        if (samples.length > 0) {
+          samples.forEach(function(sample) {
+            addField('sampleinput[]', sample.input || '');
+            addField('sampleoutput[]', sample.output || '');
+            addField('samplehint[]', sample.hint ? mdLatexToHtmlForYzoj(sample.hint) : '');
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to parse samples:', e);
+      }
+    }
+    addField('hint', mdLatexToHtmlForYzoj(msg.hint || ''));
+    addField('hiddenhint', mdLatexToHtmlForYzoj(msg.hiddenhint || ''));
+    addField('format', msg.format || '');
+    // datafile 字段必须始终发送（YZOJ 期望该字段始终存在）
+    addFile('datafile', dataFileBuffer ? dataFileName : '', dataFileBuffer);
+    // SPJ 源代码：打包成 ZIP 上传（仅在用户选择新 SPJ 时）
+    var sjFileBuffer = null;
+    var sjFileName = '';
+    if (msg.spjDirty && msg.spjFileData && msg.spjFileName) {
+      try {
+        var spjZip = new (require('adm-zip'))();
+        var fileData = Buffer.from(msg.spjFileData, 'base64');
+        var spjBaseName = msg.spjFileName.replace(/^.*[\\\/]/, '');
+        spjZip.addFile(spjBaseName, fileData);
+        sjFileBuffer = spjZip.toBuffer();
+        sjFileName = 'spj.zip';
+        console.log('[EditProblem] SPJ 已打包为 ZIP:', spjBaseName, sjFileBuffer.length, '字节');
+      } catch (e) {
+        console.warn('[EditProblem] SPJ 打包失败:', e.message);
+      }
+    }
+    // sjfile 字段必须始终发送（YZOJ 期望该字段始终存在）
+    addFile('sjfile', sjFileBuffer ? sjFileName : '', sjFileBuffer);
+    addField('referer', baseUrl + '/OnlineJudge/problem_show.php?id=' + msg.problemId);
+    addField('submit', '提交');
+    bodyChunks.push(Buffer.from('--' + boundary + '--\r\n'));
+    var bodyBuffer = Buffer.concat(bodyChunks);
+    
+    var editUrl = baseUrl + '/OnlineJudge/problem_edit.php?id=' + msg.problemId;
+    var agent = editUrl.startsWith('https') ? _httpsAgent : _httpAgent;
+    
+    console.log('[EditProblem] 提交到:', editUrl);
+    console.log('[EditProblem] Cookie:', cookie ? cookie.substring(0, 50) + '...' : '(none)');
+    console.log('[EditProblem] pname:', msg.pname);
+    console.log('[EditProblem] tags:', msg.tags);
+    console.log('[EditProblem] description 长度:', (msg.description || '').length);
+    console.log('[EditProblem] body 长度:', bodyBuffer.length);
+    
+    var response = await fetch(editUrl, {
+      method: 'POST',
+      headers: {
+        'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'cache-control': 'max-age=0',
+        'content-type': 'multipart/form-data; boundary=' + boundary,
+        'priority': 'u=0, i',
+        'sec-ch-ua': '"Not;A=Brand";v="8", "Chromium";v="150", "Microsoft Edge";v="150"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'same-origin',
+        'sec-fetch-user': '?1',
+        'upgrade-insecure-requests': '1',
+        'cookie': cookie,
+        'Referer': editUrl
+      },
+      body: bodyBuffer,
+      redirect: 'manual',
+      agent: agent
+    });
+    
+    var responseText = await response.text();
+    console.log('[EditProblem] 响应状态:', response.status);
+    console.log('[EditProblem] 响应头:', JSON.stringify(Object.fromEntries(response.headers.entries())));
+    console.log('[EditProblem] 响应内容(前1500字符):', responseText.substring(0, 1500));
+    
+    if (response.status >= 300 && response.status < 400) {
+      var location = response.headers.get('location');
+      console.log('[EditProblem] 重定向位置:', location);
+      // 如果重定向到 problem_show.php 说明成功
+      if (location && location.indexOf('problem_show') >= 0) {
+        panel.webview.postMessage({ command: 'submitResult', success: true, message: '题目编辑成功！' });
+      } else {
+        throw new Error('请求被重定向到: ' + location);
+      }
+    } else if (response.status === 200) {
+      // 检查响应内容判断是否成功
+      if (responseText.indexOf('成功') >= 0 || responseText.indexOf('保存') >= 0) {
+        panel.webview.postMessage({ command: 'submitResult', success: true, message: '题目编辑成功！' });
+      } else if (responseText.indexOf('错误') >= 0 || responseText.indexOf('失败') >= 0) {
+        throw new Error('服务器返回错误: ' + responseText.substring(0, 200));
+      } else {
+        // 默认认为成功（YZOJ 提交后通常返回编辑页面）
+        panel.webview.postMessage({ command: 'submitResult', success: true, message: '题目编辑成功！' });
+      }
+    } else {
+      throw new Error('HTTP ' + response.status + ': ' + responseText.substring(0, 200));
+    }
+    
+    if (msg.config && msg.config.trim()) {
+      console.log('[EditProblem] config.json 存在，已在上方打包到数据 ZIP 中');
+    }
+  } catch (e) {
+    console.error('[EditProblem] 提交失败:', e);
+    panel.webview.postMessage({ command: 'submitResult', success: false, message: '编辑失败: ' + e.message });
+  }
+}
+
+// 处理更新用户信息提交
+async function handleUpdateUserInfo(panel, msg, baseUrl, cookie) {
+  try {
+    var body = new URLSearchParams();
+    body.set('email', msg.email || '');
+    body.set('school', msg.school || '');
+    if (msg.oldpass) body.set('oldpass', msg.oldpass);
+    if (msg.newpass) body.set('newpass', msg.newpass);
+    if (msg.repass) body.set('repass', msg.repass);
+    body.set('referer', 'index.php');
+    var result = await posthtml(baseUrl + '/OnlineJudge/user_update.php', cookie, body.toString());
+    panel.webview.postMessage({ command: 'submitResult', success: true, message: '信息更新成功！' });
+  } catch (e) {
+    panel.webview.postMessage({ command: 'submitResult', success: false, message: '更新失败: ' + e.message });
+  }
 }
 
 // ===== YZOJ 命令树视图数据提供器 =====

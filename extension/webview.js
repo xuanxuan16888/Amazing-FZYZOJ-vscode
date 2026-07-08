@@ -7,7 +7,7 @@ var AP=String.fromCharCode(38,35,48,51,57,59);
 function esc(t){if(!t)return '';return String(t).replace(/&/g,AE).replace(/</g,LT).replace(/>/g,GT).replace(/"/g,QT).replace(/'/g,AP);}
 
 // 导入统一 Markdown+LaTeX 渲染器
-const { mdToHtml, mdLatexToHtml } = require('./md-latex');
+const { mdToHtml, mdLatexToHtml, htmlToMdLatex } = require('./md-latex');
 
 // 用户链接HTML生成器
 // username: 用户名 (必填)
@@ -468,7 +468,7 @@ function yzojLevelColor(level) {
   return '#666';
 }
 
-function wrapWithMathJax(title, fullBodyHtml, baseUrl) {
+function wrapWithMathJax(title, fullBodyHtml, baseUrl, skipKatex) {
   // 重写相对路径为绝对路径（支持图片 src 和链接 href）
   if (baseUrl) {
     var rootUrl = String(baseUrl).replace(/\/+$/, '');
@@ -535,7 +535,7 @@ function wrapWithMathJax(title, fullBodyHtml, baseUrl) {
     function handleClick(e){
       var a=e.target;
       while(a&&a.tagName!=='A'){a=a.parentNode;}
-      if(!a||!a.href){logToConsole('click ignored: no anchor');return;}
+      if(!a||!a.href){return;}
       if(a.getAttribute('data-nosmart')==='1'){logToConsole('click ignored: nosmart');return;}
       if(a.onclick&&a.getAttribute('onclick')){
         // PHP 链接即使有 onclick 也拦截（避免在插件内打开泄露到 vscode-webview 协议）
@@ -681,12 +681,53 @@ function wrapWithMathJax(title, fullBodyHtml, baseUrl) {
 <html>
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://cdn.jsdelivr.net; img-src http: https: data:; connect-src http: https:; font-src https://cdn.jsdelivr.net;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; font-src https://unpkg.com https://cdn.jsdelivr.net; img-src http: https: data:; connect-src http: https:;">
   <title>${esc(title)}</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js"></script>
-  <style>${userCardStyle}</style></head>
+  <style>${userCardStyle}</style>
+  <style>
+    /* YZOJ Markdown 增强特性样式 */
+    .cute-table.tuack table{border-collapse:collapse;margin:12px 0;font-size:14px;width:100%;border:2px solid #d0d7de;border-radius:8px;overflow:hidden}
+    .cute-table.tuack th,.cute-table.tuack td{border:1px solid #d0d7de;padding:6px 10px;text-align:center}
+    .cute-table.tuack th{background:#f6f8fa;font-weight:600;color:#333}
+    .cute-table.tuack td{background:#fff}
+    .cute-table.tuack tr:nth-child(even) td{background:#fafbfc}
+    .yzoj-epigraph{border-left:4px solid #007acc;padding:12px 16px;margin:12px 0;background:#f6f9fc;border-radius:0 8px 8px 0;font-style:italic;color:#555}
+    .yzoj-epigraph-attrib{text-align:right;font-size:12px;color:#888;margin-top:4px}
+    details.yzoj-fold{border:1px solid #d0d7de;border-radius:8px;margin:12px 0;overflow:hidden;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.04)}
+    details.yzoj-fold summary.yzoj-fold-summary{cursor:pointer;font-weight:600;font-size:13px;background:#f6f8fa;color:#333;user-select:none;padding:8px 14px 8px 28px;position:relative;list-style:none}
+    details.yzoj-fold summary.yzoj-fold-summary::-webkit-details-marker{display:none}
+    details.yzoj-fold summary.yzoj-fold-summary:hover{background:#eef1f5}
+    details.yzoj-fold summary.yzoj-fold-summary::before{content:'';position:absolute;left:12px;top:50%;width:6px;height:6px;border-right:1.5px solid #666;border-bottom:1.5px solid #666;transform:translateY(-50%) rotate(-45deg);transition:transform 0.2s ease}
+    details.yzoj-fold[open] summary.yzoj-fold-summary::before{transform:translateY(-50%) rotate(45deg)}
+    details.yzoj-fold .yzoj-fold-content{padding:10px 14px;font-size:14px;line-height:1.7}
+    details.yzoj-fold .yzoj-fold-content>:first-child{margin-top:0}
+    details.yzoj-fold .yzoj-fold-content>:last-child{margin-bottom:0}
+    details.yzoj-fold-info{border-color:#0969da}
+    details.yzoj-fold-info>summary.yzoj-fold-summary{color:#0969da;background:#f0f6ff}
+    details.yzoj-fold-info>summary.yzoj-fold-summary::before{border-color:#0969da}
+    details.yzoj-fold-info>summary.yzoj-fold-summary:hover{background:#e5f0ff}
+    details.yzoj-fold-info>.yzoj-fold-content{background:#f0f6ff}
+    details.yzoj-fold-success{border-color:#2ea043}
+    details.yzoj-fold-success>summary.yzoj-fold-summary{color:#2ea043;background:#f0faf3}
+    details.yzoj-fold-success>summary.yzoj-fold-summary::before{border-color:#2ea043}
+    details.yzoj-fold-success>summary.yzoj-fold-summary:hover{background:#e3f3e9}
+    details.yzoj-fold-success>.yzoj-fold-content{background:#f0faf3}
+    details.yzoj-fold-warning{border-color:#d4920b}
+    details.yzoj-fold-warning>summary.yzoj-fold-summary{color:#b47a08;background:#fef8ec}
+    details.yzoj-fold-warning>summary.yzoj-fold-summary::before{border-color:#b47a08}
+    details.yzoj-fold-warning>summary.yzoj-fold-summary:hover{background:#fef2d6}
+    details.yzoj-fold-warning>.yzoj-fold-content{background:#fef8ec}
+    details.yzoj-fold-error{border-color:#cf222e}
+    details.yzoj-fold-error>summary.yzoj-fold-summary{color:#cf222e;background:#fff0f0}
+    details.yzoj-fold-error>summary.yzoj-fold-summary::before{border-color:#cf222e}
+    details.yzoj-fold-error>summary.yzoj-fold-summary:hover{background:#ffe3e3}
+    details.yzoj-fold-error>.yzoj-fold-content{background:#fff0f0}
+    [style*="text-align:center"] img{display:inline-block;vertical-align:middle}
+    [style*="text-align:right"] img{display:inline-block;vertical-align:middle}
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/markdown-palettes/dist/markdown-palettes.css">
+  ${skipKatex ? '' : `<script>window.MathJax={tex:{inlineMath:[['$','$'],['\\\\(','\\\\)']],displayMath:[['$$','$$'],['\\\\[','\\\\]']],processEscapes:true,ignoreHtmlClass:'no-katex'},svg:{fontCache:'global'}};</script>`}
+  </head>
 <body>
   <script>
     window._yzErrors = [];
@@ -722,7 +763,6 @@ function wrapWithMathJax(title, fullBodyHtml, baseUrl) {
       } catch(e) {
         window._yzErrors.push("bootstrap exception: " + e.message);
       }
-      // 覆写 alert：webview sandbox 禁用原生 alert，改为通过 vscode 显示
       window.alert = function(msg) {
         try {
           var va = window.vscodeApi || acquireVsCodeApi();
@@ -736,28 +776,8 @@ function wrapWithMathJax(title, fullBodyHtml, baseUrl) {
   <script>${userCardJS}</script>
   <script>${smartLinkJS}</script>
   ${_yzImgProxy}
-  <script>
-  document.addEventListener("DOMContentLoaded", function() {
-    if (typeof renderMathInElement === "function") {
-      try {
-        renderMathInElement(document.body, {
-          delimiters: [
-            {left: "$$", right: "$$", display: true},
-            {left: "$", right: "$", display: false},
-            {left: "\\\\(", right: "\\\\)", display: false}
-            // 已移除 {left: "\\\\[", right: "\\\\]", display: true}，解决 [NOIP1999] 误渲染
-          ],
-          throwOnError: false,
-          macros: {
-            "\\mbox": "\\text"
-          }
-        });
-      } catch(e) {
-        if (window._yzErrors) window._yzErrors.push("KaTeX auto-render error: " + e.message);
-      }
-    }
-  });
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-palettes/dist/markdown-palettes.js"></script>
+  ${skipKatex ? '' : '<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>'}
 </body>
 </html>`;
 }
@@ -826,11 +846,17 @@ function getContestWebviewContent(n,data,action,b){
   if(!c||!c.length)h='<div style="text-align:center;padding:40px;color:#888">\u6682\u65E0\u6BD4\u8D5B</div>';
   else{h='<table class="tbl"><thead><tr><th style="width:10%">\u7F16\u53F7</th><th style="width:53%">\u6BD4\u8D5B\u540D\u79F0</th><th style="width:25%">\u5F00\u59CB\u65F6\u95F4</th><th style="width:12%">\u72B6\u6001</th></tr></thead><tbody>';c.forEach(function(x){var id=esc(String(x.id)),url=esc(x.url||(b+'/OnlineJudge/contest_show.php?id='+x.id)),hid=x.isHidden?'true':'false',nm=esc(x.name);var st='',sc='';if(x.status=='Ended'||action=='past'){st='\u5DF2\u7ED3\u675F';sc='past';}else if(action=='now'){st='\u8FDB\u884C\u4E2D';sc='active';}else if(action=='scheduled'){st='\u8BA1\u5212\u4E2D';sc='scheduled';}else{st=x.status||'\u5DF2\u7ED3\u675F';sc=x.type||x.status||'past';}h+='<tr class="cd" data-id="'+id+'" data-url="'+url+'" data-title="'+esc(x.name)+'" data-ishidden="'+hid+'"><td style="text-align:center;font-weight:700;color:#007acc;font-size:12px;font-family:monospace">'+id+'</td><td style="text-align:left;word-break:break-word">'+nm+'</td><td style="text-align:center;font-size:12px;color:#666">'+esc(x.time||'')+'</td><td style="text-align:center"><span class="s '+sc+'">'+st+'</span></td></tr>';});h+='</tbody></table>';}
   return wrapWithMathJax(esc(n),
-    '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:13px}h2{font-size:17px;margin:0 0 10px}.p{display:flex;gap:6px;margin-bottom:10px;align-items:center}.p button{padding:5px 12px;border-radius:6px;border:1px solid #dbeaff;background:#fff;color:#007acc;cursor:pointer;font-size:12px}.p button:disabled{opacity:0.4}.p span{font-size:12px;color:#666}.pf{background:#fff;border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}.fr{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;align-items:center}.fr input{flex:1;min-width:60px;padding:5px 8px;border:1px solid #dbeaff;border-radius:5px;font-size:12px}.fb{padding:6px 14px;background:#007acc;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;margin:2px}.tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);margin-top:8px}.tbl th{background:#f5f7fa;padding:8px 12px;text-align:center;font-weight:600;font-size:12px;color:#666;border-bottom:2px solid #eee}.tbl td{padding:7px 12px;text-align:center;border-bottom:1px solid #f0f0f0}.tbl td p{margin:0}.tbl tr:hover{background:#f8fafb}.tbl tr:hover td:first-child{border-left:3px solid #007acc}.tbl .cd{cursor:pointer}.tbl .cd:hover{background:#f0f7ff}.s{padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap;display:inline-block}.s.past{background:#dafbe1;color:#2ea043}.s.active{background:#fff4e6;color:#fa5a05}.s.scheduled{background:#e6f0fa;color:#007acc}</style><h2>'+esc(n)+'</h2><div class="p"><button id="pr"'+(cp<=1?' disabled':'')+'><</button><span>'+cp+'</span><button id="nx"'+(cp>=tp?' disabled':'')+'>></button></div><div class="pf"><div class="fr"><input type="text" id="fKeyword" placeholder="\u641C\u7D22\u6BD4\u8D5B\u540D\u79F0..." style="width:100%" value="'+kw+'"></div><div><button class="fb" id="btnSearch">\u641C\u7D22</button></div></div>'+h+
-    '<script>var v=window.vscodeApi||acquireVsCodeApi();var act="'+action+'";var b="'+b+'";document.querySelectorAll(".cd").forEach(function(e){e.onclick=function(){v.postMessage({command:"openContest",id:e.dataset.id,url:e.dataset.url,title:e.dataset.title})}});document.getElementById("pr").onclick=function(){v.postMessage({command:"changePage",p:'+(cp-1)+'})};document.getElementById("nx").onclick=function(){v.postMessage({command:"changePage",p:'+(cp+1)+'})};document.getElementById("btnSearch").onclick=function(){var kw=document.getElementById("fKeyword").value.trim();v.postMessage({command:"searchContest",act:act,keyword:kw})};document.getElementById("fKeyword").onkeypress=function(e){if(e.key==="Enter"){var kw=document.getElementById("fKeyword").value.trim();v.postMessage({command:"searchContest",act:act,keyword:kw})}};</script>', b);
+    '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:13px}h2{font-size:17px;margin:0 0 10px}.p{display:flex;gap:6px;margin-bottom:10px;align-items:center}.p button{padding:5px 12px;border-radius:6px;border:1px solid #dbeaff;background:#fff;color:#007acc;cursor:pointer;font-size:12px}.p button:disabled{opacity:0.4}.p span{font-size:12px;color:#666}.pf{background:#fff;border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}.fr{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;align-items:center}.fr input{flex:1;min-width:60px;padding:5px 8px;border:1px solid #dbeaff;border-radius:5px;font-size:12px}.fb{padding:6px 14px;background:#007acc;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;margin:2px}.fb.green{background:#2ea043;color:#fff}.tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08);margin-top:8px}.tbl th{background:#f5f7fa;padding:8px 12px;text-align:center;font-weight:600;font-size:12px;color:#666;border-bottom:2px solid #eee}.tbl td{padding:7px 12px;text-align:center;border-bottom:1px solid #f0f0f0}.tbl td p{margin:0}.tbl tr:hover{background:#f8fafb}.tbl tr:hover td:first-child{border-left:3px solid #007acc}.tbl .cd{cursor:pointer}.tbl .cd:hover{background:#f0f7ff}.s{padding:3px 8px;border-radius:6px;font-size:11px;font-weight:600;white-space:nowrap;display:inline-block}.s.past{background:#dafbe1;color:#2ea043}.s.active{background:#fff4e6;color:#fa5a05}.s.scheduled{background:#e6f0fa;color:#007acc}</style><h2>'+esc(n)+'</h2><div class="p"><button id="pr"'+(cp<=1?' disabled':'')+'><</button><span>'+cp+'/'+tp+'</span><button id="nx"'+(cp>=tp?' disabled':'')+'>></button><span style="margin-left:10px">跳转到:</span><input type="number" id="jumpPage" min="1" max="'+tp+'" value="'+cp+'" style="width:50px;padding:3px 5px;border:1px solid #dbeaff;border-radius:4px;font-size:12px;text-align:center"><button id="btnJump" style="padding:3px 10px;border-radius:4px;border:1px solid #dbeaff;background:#fff;color:#007acc;cursor:pointer;font-size:12px">跳转</button></div><div class="pf"><div class="fr"><input type="text" id="fKeyword" placeholder="\u641C\u7D22\u6BD4\u8D5B\u540D\u79F0..." style="width:100%" value="'+kw+'"></div><div><button class="fb" id="btnSearch">\u641C\u7D22</button></div></div>'+h+
+    '<script>var v=window.vscodeApi||acquireVsCodeApi();var act="'+action+'";var b="'+b+'";var cp='+cp+',tp='+tp+';document.querySelectorAll(".cd").forEach(function(e){e.onclick=function(){v.postMessage({command:"openContest",id:e.dataset.id,url:e.dataset.url,title:e.dataset.title})}});document.getElementById("pr").onclick=function(){v.postMessage({command:"changePage",p:'+(cp-1)+'})};document.getElementById("nx").onclick=function(){v.postMessage({command:"changePage",p:'+(cp+1)+'})};document.getElementById("btnJump").onclick=function(){var jp=document.getElementById("jumpPage");var p=parseInt(jp.value);if(isNaN(p)||p<1||p>tp){jp.value=cp;return}v.postMessage({command:"changePage",p:p})};document.getElementById("jumpPage").onkeypress=function(e){if(e.key==="Enter")document.getElementById("btnJump").click()};document.getElementById("btnSearch").onclick=function(){var kw=document.getElementById("fKeyword").value.trim();v.postMessage({command:"searchContest",act:act,keyword:kw})};document.getElementById("fKeyword").onkeypress=function(e){if(e.key==="Enter"){var kw=document.getElementById("fKeyword").value.trim();v.postMessage({command:"searchContest",act:act,keyword:kw})}};</script>', b);
 }
 
 function getContestDetailWebview(d,b){
+  // 检查权限：无权查看时显示简单的无权访问页面，隐藏题目列表和创建工作区按钮
+  if (d.permission && /无权查看|无权限/.test(d.permission)) {
+    return wrapWithMathJax('无权查看',
+      '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:50px;color:#333;text-align:center}h2{color:#d93025;font-size:20px;margin-bottom:12px}p{font-size:14px;color:#888}</style>'+
+      '<div><h2>无权查看此比赛</h2><p>当前账号没有权限查看该比赛的详细信息。</p></div>', b);
+  }
   var ih='',ph='',lh='',dh='',cid=JSON.stringify(d.contestId||'');
   // 为描述中的站内链接/图片补全 baseUrl
   if(b && d.description) d.description = d.description.replace(/(src|href)\s*=\s*(["'])\/((?:OnlineJudge|Upload)\/[^"']*?)\2/gi, function(m, attr, quote, path) { return attr + '=' + quote + b.replace(/\/+$/, '') + '/' + path + quote; });
@@ -921,7 +947,7 @@ function getProblemDetailWebview(d,b){
   })();
   if(d.meta){if(d.meta.timeLimit)mh+='<div class="mi"><span class="ml">时间</span><span class="mv">'+esc(d.meta.timeLimit)+'</span></div>';if(d.meta.memoryLimit)mh+='<div class="mi"><span class="ml">内存</span><span class="mv">'+esc(d.meta.memoryLimit)+'</span></div>';}
   if(d.tags&&d.tags.length>0)th='<div>'+d.tags.map(function(t){return '<span class="tg2">'+esc(t)+'</span>';}).join('')+'</div>';
-  if(d.authors&&d.authors.length>0)th+='<div style="font-size:12px;color:#666;margin-top:4px">\u51FA\u9898\u4EBA:'+d.authors.slice(0,3).map(function(a,i){return userLinkHtml(a, d.authorIds&&d.authorIds[i]||'', d.authorSolvedCounts&&d.authorSolvedCounts[i]!==undefined?d.authorSolvedCounts[i]:-1, d.authorColors&&d.authorColors[i]||'', false, null, d.authorHtmls&&d.authorHtmls[i]||'')}).join(', ')+(d.authors.length>3?'...':'')+'</div>';
+  if(d.authors&&d.authors.length>0)th+='<div style="font-size:12px;color:#666;margin-top:4px"><span class="no-katex">\u51FA\u9898\u4EBA</span>:'+d.authors.slice(0,3).map(function(a,i){return userLinkHtml(a, d.authorIds&&d.authorIds[i]||'', d.authorSolvedCounts&&d.authorSolvedCounts[i]!==undefined?d.authorSolvedCounts[i]:-1, d.authorColors&&d.authorColors[i]||'', false, null, d.authorHtmls&&d.authorHtmls[i]||'')}).join(', ')+(d.authors.length>3?'...':'')+'</div>';
   var sh='';
   if(d.sectionsHtml){
     var rawKeys = Object.keys(d.sectionsHtml);
@@ -936,8 +962,9 @@ function getProblemDetailWebview(d,b){
     });
   }else if(d.sections){Object.entries(d.sections).forEach(function(e){sh+='<div class="sc"><h3>'+esc(e[0])+'</h3><pre>'+esc(e[1])+'</pre></div>';});}
   return wrapWithMathJax(title,
-    '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:14px;line-height:1.7}*{box-sizing:border-box}.cc{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}.title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.title-row h2{font-size:17px;margin:0;flex:1}.title-row .badge{font-size:11px;padding:2px 8px;border-radius:4px;font-weight:500}.badge.difficulty{background:#dafbe1;color:#2ea043}.badge.passrate{background:#e6f0fa;color:#007acc}.badge.mark-ac{background:#28a745;color:#fff}.badge.mark-att{background:#ffc107;color:#333}.mg{display:flex;gap:12px;font-size:12px;margin-top:8px}.mi{display:flex;flex-direction:column}.ml{color:#666;font-size:11px}.mv{font-weight:500}.tg2{background:#f0f0f0;color:#666;padding:2px 8px;border-radius:6px;font-size:11px;margin:2px;display:inline-block}.sc{background:#fff;border-radius:10px;padding:14px 16px;margin:12px 0;box-shadow:0 1px 4px rgba(0,0,0,0.08);overflow-x:auto}.sc h3{font-size:15px;margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid #eee;color:#007acc}.problem-content{font-size:14px;line-height:1.8;word-break:break-word}.problem-content table{border-collapse:collapse;margin:8px 0;font-size:13px;border:0}.problem-content th,.problem-content td{padding:5px 8px}.problem-content th{background:#f5f5f5;font-weight:600}.problem-content pre{background:#f6f8fa;padding:10px;border-radius:6px;font-size:13px;overflow-x:auto;line-height:1.5}.problem-content img{max-width:100%}.btn-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:16px}.btn-row .ab{flex:0 1 auto}.ab{padding:6px 16px;border:1px solid #dbeaff;border-radius:8px;background:#fff;color:#007acc;cursor:pointer;font-size:13px;margin:3px}.ab.p{background:#007acc;color:#fff}.stat-link{color:#007acc;cursor:pointer;text-decoration:underline}.stat-link:hover{color:#005a9e}.download-link{color:#007acc;cursor:pointer;text-decoration:underline}.download-link:hover{color:#005a9e}</style><div class="cc"><div class="title-row"><h2>'+title+'</h2>'+markHtml+(difficulty?'<span class="badge difficulty">'+difficulty+'</span>':'')+(passRate?'<span class="badge passrate">\u901A\u8FC7\u7387 '+passRate+'</span>':'')+'</div><div class="mg">'+mh+(acCount||subCount?'<div class="mi"><span class="ml">\u901A\u8FC7/\u63D0\u4EA4</span><span class="mv"><span class="stat-link" id="linkAc">'+esc(acCount||'0')+'</span>/<span class="stat-link" id="linkSub">'+esc(subCount||'0')+'</span></span></div>':'')+'</div>'+th+'</div>'+sh+'<div class="btn-row"><button class="ab p" id="bc">\u53D1\u9001\u81F3CPH</button><button class="ab" id="btnSolutions">\u9898\u89E3</button><button class="ab" id="btnDiscussions">\u8BA8\u8BBA</button><button class="ab" id="btnStatus">\u72B6\u6001</button></div>'+
-    '<script>var v=window.vscodeApi||acquireVsCodeApi();var pid="'+pid+'";var dSamples=(function(){try{return '+JSON.stringify(d.samples||[])+';}catch(e){return [];}})();document.querySelectorAll("pre").forEach(function(p){if(p.closest&&p.closest("button"))return;if(p.dataset.cpDone)return;p.dataset.cpDone="1";var b=document.createElement("button");b.className="copy-sample-btn";b.textContent="\u590D\u5236";b.dataset.text=p.textContent;b.style.cssText="position:absolute;top:8px;right:8px;padding:4px 10px;font-size:12px;border:1px solid #007acc;background:#007acc;color:#fff;border-radius:6px;cursor:pointer;z-index:1";var w=document.createElement("div");w.style.cssText="position:relative;margin:6px 0";p.parentNode.insertBefore(w,p);w.appendChild(p);w.appendChild(b)});document.querySelectorAll(".copy-sample-btn,.sample-copy-btn").forEach(function(b){b.onclick=function(){navigator.clipboard.writeText(b.dataset.text).then(function(){b.textContent="\u5DF2\u590D\u5236";b.style.background="#2ea043";setTimeout(function(){b.textContent="\u590D\u5236";b.style.background="#007acc"},1500)}).catch(function(){})}});document.querySelectorAll(".download-link").forEach(function(a){a.onclick=function(e){e.preventDefault();v.postMessage({command:"downloadFile",url:a.getAttribute("href")})}});document.getElementById("bc").onclick=function(){var tests=(dSamples||[]).map(function(s){return{input:(s&&s.input!=null)?String(s.input):"",output:(s&&s.output!=null)?String(s.output):""}});v.postMessage({command:"sendToCPH",problem:{name:'+JSON.stringify(_cphName)+',problemId:'+JSON.stringify(_cphPid)+',group:"FZYZOJ",url:'+JSON.stringify(_cphUrl)+',memoryLimit:'+_cphMemLimit+',timeLimit:'+_cphTimeLimit+',tests:tests,samples:dSamples||[]}})};document.getElementById("btnSolutions").onclick=function(){v.postMessage({command:"loadSolutions",problemId:pid})};document.getElementById("btnDiscussions").onclick=function(){v.postMessage({command:"loadDiscussions",problemId:pid})};document.getElementById("btnStatus").onclick=function(){v.postMessage({command:"loadProblemStatus",problemId:pid})};var linkAc=document.getElementById("linkAc");if(linkAc)linkAc.onclick=function(){v.postMessage({command:"openStatusWithFilter",problemId:pid,status:"ac"})};var linkSub=document.getElementById("linkSub");if(linkSub)linkSub.onclick=function(){v.postMessage({command:"openStatusWithFilter",problemId:pid})};</script>', b);
+    '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:14px;line-height:1.7}*{box-sizing:border-box}.cc{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}.title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.title-row h2{font-size:17px;margin:0;flex:1}.title-row .badge{font-size:11px;padding:2px 8px;border-radius:4px;font-weight:500}.badge.difficulty{background:#dafbe1;color:#2ea043}.badge.passrate{background:#e6f0fa;color:#007acc}.badge.mark-ac{background:#28a745;color:#fff}.badge.mark-att{background:#ffc107;color:#333}.mg{display:flex;gap:12px;font-size:12px;margin-top:8px}.mi{display:flex;flex-direction:column}.ml{color:#666;font-size:11px}.mv{font-weight:500}.tg2{background:#f0f0f0;color:#666;padding:2px 8px;border-radius:6px;font-size:11px;margin:2px;display:inline-block}.sc{background:#fff;border-radius:10px;padding:14px 16px;margin:12px 0;box-shadow:0 1px 4px rgba(0,0,0,0.08);overflow-x:auto}.sc h3{font-size:15px;margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid #eee;color:#007acc}.problem-content{font-size:14px;line-height:1.8;word-break:break-word}.problem-content ul,.problem-content ol{padding-left:2em;margin:0.5em 0}.problem-content ul{list-style-type:disc}.problem-content ol{list-style-type:decimal}.problem-content li{margin:0.2em 0}.problem-content table{border-collapse:collapse;margin:8px 0;font-size:13px;border:0}.problem-content th,.problem-content td{padding:5px 8px}.problem-content th{background:#f5f5f5;font-weight:600}.problem-content pre{background:#f6f8fa;padding:10px;border-radius:6px;font-size:13px;overflow-x:auto;line-height:1.5}.problem-content img{max-width:100%}'+
+    '.yzoj-md-ul,.yzoj-md-ol{padding-left:2em;margin:0.5em 0}.yzoj-md-ol{counter-reset:yzoj-counter}.yzoj-md-li{margin:0.2em 0}.yzoj-md-li p{display:inline;margin:0}.yzoj-md-ul>.yzoj-md-li::before{content:"\\2022 ";display:inline}.yzoj-md-ol>.yzoj-md-li::before{counter-increment:yzoj-counter;content:counter(yzoj-counter) ". ";display:inline}.btn-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:16px}.btn-row .ab{flex:0 1 auto}.ab{padding:6px 16px;border:1px solid #dbeaff;border-radius:8px;background:#fff;color:#007acc;cursor:pointer;font-size:13px;margin:3px}.ab.p{background:#007acc;color:#fff}.stat-link{color:#007acc;cursor:pointer;text-decoration:underline}.stat-link:hover{color:#005a9e}.download-link{color:#007acc;cursor:pointer;text-decoration:underline}.download-link:hover{color:#005a9e}</style><div class="cc"><div class="title-row"><h2>'+title+'</h2>'+markHtml+(difficulty?'<span class="badge difficulty">'+difficulty+'</span>':'')+(passRate?'<span class="badge passrate">\u901A\u8FC7\u7387 '+passRate+'</span>':'')+'</div><div class="mg">'+mh+(acCount||subCount?'<div class="mi"><span class="ml">\u901A\u8FC7/\u63D0\u4EA4</span><span class="mv"><span class="stat-link" id="linkAc">'+esc(acCount||'0')+'</span>/<span class="stat-link" id="linkSub">'+esc(subCount||'0')+'</span></span></div>':'')+'</div>'+th+'</div>'+sh+'<div class="btn-row"><button class="ab p" id="bc">\u53D1\u9001\u81F3CPH</button><button class="ab" id="btnSolutions">\u9898\u89E3</button><button class="ab" id="btnDiscussions">\u8BA8\u8BBA</button><button class="ab" id="btnStatus">\u72B6\u6001</button>'+(d.canEdit?'<button class="ab" id="btnEditProblem">\u7F16\u8F91\u9898\u76EE</button>':'')+'</div>'+
+    '<script>var v=window.vscodeApi||acquireVsCodeApi();var pid="'+pid+'";var dSamples=(function(){try{return '+JSON.stringify(d.samples||[])+';}catch(e){return [];}})();document.querySelectorAll("pre").forEach(function(p){if(p.closest&&p.closest("button"))return;if(p.dataset.cpDone)return;p.dataset.cpDone="1";var b=document.createElement("button");b.className="copy-sample-btn";b.textContent="\u590D\u5236";b.dataset.text=p.textContent;b.style.cssText="position:absolute;top:8px;right:8px;padding:4px 10px;font-size:12px;border:1px solid #007acc;background:#007acc;color:#fff;border-radius:6px;cursor:pointer;z-index:1";var w=document.createElement("div");w.style.cssText="position:relative;margin:6px 0";p.parentNode.insertBefore(w,p);w.appendChild(p);w.appendChild(b)});document.querySelectorAll(".copy-sample-btn,.sample-copy-btn").forEach(function(b){b.onclick=function(){navigator.clipboard.writeText(b.dataset.text).then(function(){b.textContent="\u5DF2\u590D\u5236";b.style.background="#2ea043";setTimeout(function(){b.textContent="\u590D\u5236";b.style.background="#007acc"},1500)}).catch(function(){})}});document.querySelectorAll(".download-link").forEach(function(a){a.onclick=function(e){e.preventDefault();v.postMessage({command:"downloadFile",url:a.getAttribute("href")})}});document.getElementById("bc").onclick=function(){var tests=(dSamples||[]).map(function(s){return{input:(s&&s.input!=null)?String(s.input):"",output:(s&&s.output!=null)?String(s.output):""}});v.postMessage({command:"sendToCPH",problem:{name:'+JSON.stringify(_cphName)+',problemId:'+JSON.stringify(_cphPid)+',group:"FZYZOJ",url:'+JSON.stringify(_cphUrl)+',memoryLimit:'+_cphMemLimit+',timeLimit:'+_cphTimeLimit+',tests:tests,samples:dSamples||[]}})};document.getElementById("btnSolutions").onclick=function(){v.postMessage({command:"loadSolutions",problemId:pid})};document.getElementById("btnDiscussions").onclick=function(){v.postMessage({command:"loadDiscussions",problemId:pid})};document.getElementById("btnStatus").onclick=function(){v.postMessage({command:"loadProblemStatus",problemId:pid})};var btnEdit=document.getElementById("btnEditProblem");if(btnEdit)btnEdit.onclick=function(){v.postMessage({command:"editProblem",problemId:pid})};var linkAc=document.getElementById("linkAc");if(linkAc)linkAc.onclick=function(){v.postMessage({command:"openStatusWithFilter",problemId:pid,status:"ac"})};var linkSub=document.getElementById("linkSub");if(linkSub)linkSub.onclick=function(){v.postMessage({command:"openStatusWithFilter",problemId:pid})};</script>', b);
 }
 
 // =====================================================
@@ -1793,7 +1820,7 @@ if(typeof _yzShowErrors === 'function') _yzShowErrors();
 function getProblemListWebview(data,b){
   var p=data.problems,cp=data.currentPage,tp=data.totalPages,allTags=data.allTags||[],h='',kw=esc(data.currentKeyword||''),cs=data.currentSort||'id',co=data.currentOrder||'asc',tagsJson=JSON.stringify(allTags).replace(/</g,'\\u003c'),selTagsJson=JSON.stringify(data.selectedTags||[]);
 
-  var styles='body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:13px}h2{font-size:17px;margin:0 0 10px}.p{display:flex;gap:6px;margin-bottom:10px;align-items:center}.p button{padding:5px 12px;border-radius:6px;border:1px solid #dbeaff;background:#fff;color:#007acc;cursor:pointer;font-size:12px}.p button:disabled{opacity:0.4}.p span{font-size:12px;color:#666}.pf{background:#fff;border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}.fr{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;align-items:center}.fr input,.fr select{flex:1;min-width:60px;padding:5px 8px;border:1px solid #dbeaff;border-radius:5px;font-size:12px}.tg{display:flex;flex-wrap:wrap;gap:3px;margin:4px 0;max-height:100px;overflow-y:auto;padding:3px;border:1px solid #eee;border-radius:6px}.tg-item{padding:2px 8px;border-radius:10px;font-size:11px;background:#f0f0f0;color:#666;cursor:pointer;user-select:none}.tg-item:hover{background:#e6f0fa}.tg-item.sel{background:#007acc;color:#fff}.fb{padding:6px 14px;background:#007acc;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;margin:2px}.fb.sec{background:#6c757d}.fb.rnd{background:#6c5ce7}.tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08)}.tbl th{background:#f5f7fa;padding:8px 12px;text-align:center;font-weight:600;font-size:12px;color:#666;border-bottom:2px solid #eee}.tbl td{padding:7px 12px;text-align:center;border-bottom:1px solid #f0f0f0}.tbl td p{margin:0}.tbl tr:hover{background:#f8fafb}.tbl tr:hover td:first-child{border-left:3px solid #007acc}.tbl .mk{font-size:14px;font-weight:bold}.tbl .mk.ac{color:#28a745}.tbl .mk.att{color:#ffc107;font-size:12px}.tbl .pid{font-weight:700;color:#007acc;font-size:12px}.tbl .pname{text-align:left;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%}.tbl .pm{font-size:12px;color:#ad58a6;margin-left:3px;flex-shrink:0}.tbl .ptitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;max-width:100%}.tbl .rate{font-size:12px;color:#666}.tbl .rate strong{color:#007acc}.tbl .level{font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;display:inline-block}.tbl .level.e{background:#dafbe1;color:#2ea043}.tbl .level.m{background:#fff4e6;color:#fa5a05}.tbl .level.h{background:#ffebe9;color:#cf222e}.tbl .hidden{opacity:0.5;color:#888}';
+  var styles='body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:13px}h2{font-size:17px;margin:0 0 10px}.p{display:flex;gap:6px;margin-bottom:10px;align-items:center}.p button{padding:5px 12px;border-radius:6px;border:1px solid #dbeaff;background:#fff;color:#007acc;cursor:pointer;font-size:12px}.p button:disabled{opacity:0.4}.p span{font-size:12px;color:#666}.pf{background:#fff;border-radius:10px;padding:12px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}.fr{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;align-items:center}.fr input,.fr select{flex:1;min-width:60px;padding:5px 8px;border:1px solid #dbeaff;border-radius:5px;font-size:12px}.tg{display:flex;flex-wrap:wrap;gap:3px;margin:4px 0;max-height:100px;overflow-y:auto;padding:3px;border:1px solid #eee;border-radius:6px}.tg-item{padding:2px 8px;border-radius:10px;font-size:11px;background:#f0f0f0;color:#666;cursor:pointer;user-select:none}.tg-item:hover{background:#e6f0fa}.tg-item.sel{background:#007acc;color:#fff}.fb{padding:6px 14px;background:#007acc;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:13px;margin:2px}.fb.sec{background:#6c757d}.fb.rnd{background:#6c5ce7}.fb.purple{background:#8250df;color:#fff}.tbl{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,0.08)}.tbl th{background:#f5f7fa;padding:8px 12px;text-align:center;font-weight:600;font-size:12px;color:#666;border-bottom:2px solid #eee}.tbl td{padding:7px 12px;text-align:center;border-bottom:1px solid #f0f0f0}.tbl td p{margin:0}.tbl tr:hover{background:#f8fafb}.tbl tr:hover td:first-child{border-left:3px solid #007acc}.tbl .mk{font-size:14px;font-weight:bold}.tbl .mk.ac{color:#28a745}.tbl .mk.att{color:#ffc107;font-size:12px}.tbl .pid{font-weight:700;color:#007acc;font-size:12px}.tbl .pname{text-align:left;font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%}.tbl .pm{font-size:12px;color:#ad58a6;margin-left:3px;flex-shrink:0}.tbl .ptitle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-block;vertical-align:middle;max-width:100%}.tbl .rate{font-size:12px;color:#666}.tbl .rate strong{color:#007acc}.tbl .level{font-size:11px;font-weight:600;padding:2px 6px;border-radius:4px;display:inline-block}.tbl .level.e{background:#dafbe1;color:#2ea043}.tbl .level.m{background:#fff4e6;color:#fa5a05}.tbl .level.h{background:#ffebe9;color:#cf222e}.tbl .hidden{opacity:0.5;color:#888}';
 
   if(p&&p.length>0){
     h='<table class="tbl"><thead><tr><th>Mark</th><th>题号</th><th>题名</th><th>通过率</th><th>难度</th></tr></thead><tbody>';
@@ -1823,19 +1850,19 @@ function getProblemListWebview(data,b){
     h='<div style="text-align:center;padding:40px;color:#888">\u6682\u65E0\u9898\u76EE</div>';
   }
 
-  var script='(function(){var v=window.vscodeApi||acquireVsCodeApi();var allTags='+tagsJson+';var selTags='+selTagsJson+';var tc=document.getElementById("tagContainer");var cp='+cp+',tp='+tp+';if(allTags&&allTags.length>0){allTags.forEach(function(t){var el=document.createElement("span");el.className="tg-item";if(selTags.indexOf(t)>=0)el.classList.add("sel");el.textContent=t;el.onclick=function(){if(selTags.indexOf(t)>=0){selTags=selTags.filter(function(x){return x!==t})}else{selTags.push(t)}document.querySelectorAll("#tagContainer .tg-item").forEach(function(e){if(selTags.indexOf(e.textContent)>=0)e.classList.add("sel");else e.classList.remove("sel")})};tc.appendChild(el)})}function getOpts(){var o={};var kw=document.getElementById("fKeyword").value.trim();if(kw)o.keyword=kw;o.sort_by=document.getElementById("fSort").value;o.sort_order=document.getElementById("fOrder").value;if(selTags.length>0)o.tag=selTags[0];return o}document.querySelectorAll(".tbl tbody tr:not(.hidden)").forEach(function(e){e.onclick=function(){v.postMessage({command:"openProblem",id:e.dataset.id,url:e.dataset.url})}});document.getElementById("pr").onclick=function(){v.postMessage({command:"changePage",p:cp-1,opts:getOpts()})};document.getElementById("nx").onclick=function(){v.postMessage({command:"changePage",p:cp+1,opts:getOpts()})};document.getElementById("btnSearch").onclick=function(){v.postMessage({command:"search",opts:getOpts(),selectedTags:selTags})};document.getElementById("btnReset").onclick=function(){selTags=[];document.getElementById("fKeyword").value="";v.postMessage({command:"search",opts:{sort_by:"id",sort_order:"asc"},selectedTags:[]})};document.getElementById("btnRandom").onclick=function(){v.postMessage({command:"randomProblem"})};document.getElementById("fKeyword").onkeypress=function(e){if(e.key==="Enter")document.getElementById("btnSearch").click()}})();';
+  var script='(function(){var v=window.vscodeApi||acquireVsCodeApi();var allTags='+tagsJson+';var selTags='+selTagsJson+';var tc=document.getElementById("tagContainer");var cp='+cp+',tp='+tp+';if(allTags&&allTags.length>0){allTags.forEach(function(t){var el=document.createElement("span");el.className="tg-item";if(selTags.indexOf(t)>=0)el.classList.add("sel");el.textContent=t;el.onclick=function(){if(selTags.indexOf(t)>=0){selTags=selTags.filter(function(x){return x!==t})}else{selTags.push(t)}document.querySelectorAll("#tagContainer .tg-item").forEach(function(e){if(selTags.indexOf(e.textContent)>=0)e.classList.add("sel");else e.classList.remove("sel")})};tc.appendChild(el)})}function getOpts(){var o={};var kw=document.getElementById("fKeyword").value.trim();if(kw)o.keyword=kw;o.sort_by=document.getElementById("fSort").value;o.sort_order=document.getElementById("fOrder").value;if(selTags.length>0)o.tag=selTags[0];return o}document.querySelectorAll(".tbl tbody tr:not(.hidden)").forEach(function(e){e.onclick=function(){v.postMessage({command:"openProblem",id:e.dataset.id,url:e.dataset.url})}});document.getElementById("pr").onclick=function(){v.postMessage({command:"changePage",p:cp-1,opts:getOpts()})};document.getElementById("nx").onclick=function(){v.postMessage({command:"changePage",p:cp+1,opts:getOpts()})};document.getElementById("btnJump").onclick=function(){var jp=document.getElementById("jumpPage");var p=parseInt(jp.value);if(isNaN(p)||p<1||p>tp){jp.value=cp;return}v.postMessage({command:"changePage",p:p,opts:getOpts()})};document.getElementById("jumpPage").onkeypress=function(e){if(e.key==="Enter")document.getElementById("btnJump").click()};document.getElementById("btnSearch").onclick=function(){v.postMessage({command:"search",opts:getOpts(),selectedTags:selTags})};document.getElementById("btnReset").onclick=function(){selTags=[];document.getElementById("fKeyword").value="";v.postMessage({command:"search",opts:{sort_by:"id",sort_order:"asc"},selectedTags:[]})};document.getElementById("btnRandom").onclick=function(){v.postMessage({command:"randomProblem"})};var btnCp=document.getElementById("btnCreateProblem");if(btnCp)btnCp.onclick=function(){v.postMessage({command:"createProblem"})};document.getElementById("fKeyword").onkeypress=function(e){if(e.key==="Enter")document.getElementById("btnSearch").click()}})();';
 
   return wrapWithMathJax('\u9898\u5E93',
     '<style>'+styles+'</style>'+
     '<h2>\u9898\u5E93</h2>'+
-    '<div class="p"><button id="pr"'+(cp<=1?' disabled':'')+'><</button><span>'+cp+'</span><button id="nx"'+(cp>=tp?' disabled':'')+'>></button></div>'+
+    '<div class="p"><button id="pr"'+(cp<=1?' disabled':'')+'><</button><span>'+cp+'/'+tp+'</span><button id="nx"'+(cp>=tp?' disabled':'')+'>></button><span style="margin-left:10px">跳转到:</span><input type="number" id="jumpPage" min="1" max="'+tp+'" value="'+cp+'" style="width:50px;padding:3px 5px;border:1px solid #dbeaff;border-radius:4px;font-size:12px;text-align:center"><button id="btnJump" style="padding:3px 10px;border-radius:4px;border:1px solid #dbeaff;background:#fff;color:#007acc;cursor:pointer;font-size:12px">跳转</button></div>'+
     '<div class="pf">'+
       '<div class="fr"><input type="text" id="fKeyword" placeholder="\u641C\u7D22\u6807\u9898..." style="width:100%" value="'+kw+'"></div>'+
       '<div class="tg" id="tagContainer"></div>'+
       '<div class="fr"><label style="margin-left:0">\u6392\u5E8F</label><select id="fSort"><option value="id" '+(cs==='id'?'selected':'')+'>\u9898\u76EE\u7F16\u53F7</option><option value="difficulty" '+(cs==='difficulty'?'selected':'')+'>\u96BE\u5EA6</option><option value="pass_rate" '+(cs==='pass_rate'?'selected':'')+'>\u901A\u8FC7\u7387</option><option value="ac_count" '+(cs==='ac_count'?'selected':'')+'>\u901A\u8FC7\u6570</option><option value="submit_count" '+(cs==='submit_count'?'selected':'')+'>\u63D0\u4EA4\u6570</option></select><select id="fOrder"><option value="asc" '+(co==='asc'?'selected':'')+'>\u5347\u5E8F</option><option value="desc" '+(co==='desc'?'selected':'')+'>\u964D\u5E8F</option></select></div>'+
-      '<div style="margin-top:6px"><button class="fb" id="btnSearch">\u641C\u7D22</button><button class="fb sec" id="btnReset">\u91CD\u7F6E</button><button class="fb rnd" id="btnRandom">\u968F\u673A</button></div>'+
+      '<div style="margin-top:6px"><button class="fb" id="btnSearch">\u641C\u7D22</button><button class="fb sec" id="btnReset">\u91CD\u7F6E</button><button class="fb rnd" id="btnRandom">\u968F\u673A</button>'+(data.canCreateProblem?'<button class="fb purple" id="btnCreateProblem">\uFF0B \u521B\u5EFA\u65B0\u9898\u76EE</button>':'')+'</div>'+
     '</div>'+h+
-    '<script>'+script+'</script>', b);
+    '<script>'+script+'</script>', b, true);
 }
 function getSolutionsWebview(data,_b){
   var s=data.solutions||[],pid=data.problemId||'',h='';
@@ -1843,7 +1870,9 @@ function getSolutionsWebview(data,_b){
     h+='<div class="sol-item"><div class="sol-header"><span class="sol-title">'+esc(sol.title||'')+'</span><span class="sol-meta">'+userLinkHtml(sol.author||'', sol.authorId||'', -1, undefined, true, sol.tags || [])+' \u00B7 '+esc(sol.time||'')+'</span></div><div class="sol-content">'+(sol.contentHtml||esc(sol.content))+'</div></div>';
   });}else h='<div style="text-align:center;padding:40px;color:#888">\u6682\u65E0\u9898\u89E3</div>';
   return wrapWithMathJax('\u9898\u89E3',
-    '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:13px}h2{font-size:17px;margin:0 0 10px}.sol-item{background:#fff;padding:12px 14px;border-radius:8px;margin:6px 0;border:1px solid #eee}.sol-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.sol-title{font-weight:600;font-size:14px;color:#007acc}.sol-meta{font-size:11px;color:#888}.sol-content{font-size:13px;color:#444;line-height:1.6;word-break:break-all}.sol-content img{max-width:100%}.sol-content pre{background:#f6f8fa;padding:8px;border-radius:4px;overflow-x:auto;font-family:Consolas,monospace;font-size:12px}.sol-content code{background:#f0f0f0;padding:1px 4px;border-radius:2px;font-size:12px}.ab{padding:6px 16px;border:1px solid #dbeaff;border-radius:6px;background:#fff;color:#007acc;cursor:pointer;font-size:12px;margin:3px}.ab.p{background:#007acc;color:#fff}'+userCardCss()+'</style><h2>'+esc(data.problemTitle||'\u9898\u89E3')+'</h2>'+
+    '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:13px}h2{font-size:17px;margin:0 0 10px}.sol-item{background:#fff;padding:12px 14px;border-radius:8px;margin:6px 0;border:1px solid #eee}.sol-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}.sol-title{font-weight:600;font-size:14px;color:#007acc}.sol-meta{font-size:11px;color:#888}.sol-content{font-size:13px;color:#444;line-height:1.6;word-break:break-all}.sol-content img{max-width:100%}.sol-content pre{background:#f6f8fa;padding:8px;border-radius:4px;overflow-x:auto;font-family:Consolas,monospace;font-size:12px}.sol-content code{background:#f0f0f0;padding:1px 4px;border-radius:2px;font-size:12px}.sol-content ul,.sol-content ol{padding-left:24px;margin:8px 0}.sol-content li{margin:4px 0}'+
+    '.yzoj-md-ul,.yzoj-md-ol{padding-left:2em;margin:0.5em 0}.yzoj-md-ol{counter-reset:yzoj-counter}.yzoj-md-li{margin:0.2em 0}.yzoj-md-li p{display:inline;margin:0}.yzoj-md-ul>.yzoj-md-li::before{content:"\\2022 ";display:inline}.yzoj-md-ol>.yzoj-md-li::before{counter-increment:yzoj-counter;content:counter(yzoj-counter) ". ";display:inline}'+
+    '.ab{padding:6px 16px;border:1px solid #dbeaff;border-radius:6px;background:#fff;color:#007acc;cursor:pointer;font-size:12px;margin:3px}.ab.p{background:#007acc;color:#fff}'+userCardCss()+'</style><h2>'+esc(data.problemTitle||'\u9898\u89E3')+'</h2>'+
     '<button class="ab p" id="btnNewSolution" style="margin-bottom:8px">\u64B0\u5199\u9898\u89E3</button>'+h+
     '<script>var pid="'+esc(pid)+'";function vm(m){(window.vscodeApi||acquireVsCodeApi()).postMessage(m)}'+
     'document.getElementById("btnNewSolution").onclick=function(){vm({command:"newSolution",problemId:pid})};'+
@@ -1883,7 +1912,9 @@ function getSolutionDetailWebview(s,b){
     editBtnHtml = '<button class="ab" id="btnEditSolution">编辑题解</button>';
   }
   return wrapWithMathJax('\u9898\u89E3',
-    '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333}.c{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}h2{font-size:17px;margin:0 0 10px}.meta{font-size:12px;color:#888;margin-bottom:12px;display:flex;align-items:center;gap:6px}.content{line-height:1.7;font-size:14px}.content img{max-width:100%}.btn-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:16px}.ab{padding:6px 16px;border:1px solid #dbeaff;border-radius:6px;background:#fff;color:#007acc;cursor:pointer;font-size:12px;margin:3px}.ab.p{background:#007acc;color:#fff}</style><div class="c"><h2>\u9898\u89E3: '+esc(s.title)+'</h2><div class="meta">'+authorHtml+' <span>\u00B7 '+esc(s.created_at||'')+'</span></div></div><div class="c content">'+(contentHtml||esc(s.content))+'</div><div class="btn-row">'+editBtnHtml+'</div><script>function vm(m){(window.vscodeApi||acquireVsCodeApi()).postMessage(m)}'+
+    '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333}.c{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}h2{font-size:17px;margin:0 0 10px}.meta{font-size:12px;color:#888;margin-bottom:12px;display:flex;align-items:center;gap:6px}.content{line-height:1.7;font-size:14px}.content img{max-width:100%}'+
+    '.yzoj-md-ul,.yzoj-md-ol{padding-left:2em;margin:0.5em 0}.yzoj-md-ol{counter-reset:yzoj-counter}.yzoj-md-li{margin:0.2em 0}.yzoj-md-ul>.yzoj-md-li::before{content:"\\2022 ";display:inline}.yzoj-md-ol>.yzoj-md-li::before{counter-increment:yzoj-counter;content:counter(yzoj-counter) ". ";display:inline}'+
+    '.btn-row{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:16px}.ab{padding:6px 16px;border:1px solid #dbeaff;border-radius:6px;background:#fff;color:#007acc;cursor:pointer;font-size:12px;margin:3px}.ab.p{background:#007acc;color:#fff}</style><div class="c"><h2>\u9898\u89E3: '+esc(s.title)+'</h2><div class="meta">'+authorHtml+' <span>\u00B7 '+esc(s.created_at||'')+'</span></div></div><div class="c content">'+(contentHtml||esc(s.content))+'</div><div class="btn-row">'+editBtnHtml+'</div><script>function vm(m){(window.vscodeApi||acquireVsCodeApi()).postMessage(m)}'+
     'var btnEdit=document.getElementById("btnEditSolution");if(btnEdit){btnEdit.onclick=function(){vm({command:"editSolution",id:"'+esc(s.id||'')+'",contentHtml:"'+esc(s.content_html||'').replace(/"/g,'&quot;')+'",content:"'+esc(s.content||'').replace(/"/g,'&quot;')+'"})}}'+
     '</script>', b);
 }
@@ -1894,7 +1925,7 @@ function getDiscussionListWebview(data,_b){
   else ds.forEach(function(d){
     var dAuthor=(d.author||'').toString().trim().replace(/[.。\s]+$/g,'');
     var dTime=(d.time||d.created_at||'').toString().trim().replace(/[.。\s]+$/g,'');
-    h+='<div class="disc-item" data-id="'+esc(d.id)+'"><div class="disc-title">'+esc(d.title)+'</div><div class="disc-meta">'+userLinkHtml(dAuthor, d.authorId||'', -1, undefined, true)+' \u00B7 '+esc(dTime)+'</div></div>';
+    h+='<div class="disc-item" data-id="'+esc(d.id)+'"><div class="disc-title">'+esc(d.title)+'</div></div>';
   });
   return wrapWithMathJax('\u8BA8\u8BBA',
     '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:13px}.disc-item{background:#fff;padding:10px 14px;border-radius:8px;margin:4px 0;cursor:pointer;border:1px solid #eee}.disc-item:hover{background:#e6f0fa;border-color:#dbeaff}.disc-title{font-weight:600;font-size:13px;color:#333}.disc-meta{font-size:11px;color:#888;margin-top:3px}.ab{padding:6px 16px;border:1px solid #dbeaff;border-radius:6px;background:#fff;color:#007acc;cursor:pointer;font-size:12px;margin:3px}.ab.p{background:#007acc;color:#fff}'+userCardCss()+'</style><div style="margin-bottom:8px"><button class="ab p" id="btnNewDiscussion">\u64B0\u5199\u8BA8\u8BBA</button></div>'+h+'<script>var pid="'+esc(pid)+'";function vm(m){(window.vscodeApi||acquireVsCodeApi()).postMessage(m)}document.getElementById("btnNewDiscussion").onclick=function(){if(pid&&pid.trim()){vm({command:"newDiscussion",problemId:pid.trim()})}else{vm({command:"newDiscussion",problemId:""})}};document.querySelectorAll(".disc-item").forEach(function(e){e.addEventListener("click",function(ev){if(ev.target.closest(".user-link")){ev.stopPropagation();return}vm({command:"openDiscussion",id:e.dataset.id})})})</script><script>'+userCardScript()+'</script>');
@@ -1923,7 +1954,9 @@ function getDiscussionDetailWebview(d,b,curUser){
   var isForum = (d.source === 'discussionList');
   var forumDid = isForum ? (d.id || '') : '';
   return wrapWithMathJax('\u8BA8\u8BBA - '+esc(d.title),
-    '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333}.c{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}h2{font-size:17px;margin:0 0 10px}.meta{font-size:12px;color:#888;margin-bottom:8px}.content{line-height:1.7;font-size:14px;margin-bottom:8px}.content img,.post-content img{max-width:100%}.post{border-bottom:1px solid #eee;padding:12px 0}.post:last-child{border-bottom:none}.post-header{font-weight:600;font-size:12px;margin-bottom:6px;color:#555;display:flex;align-items:center;gap:8px}.post-floor{display:inline-block;padding:2px 8px;background:#007acc;color:#fff;border-radius:12px;font-size:11px;margin-right:8px;font-weight:700}.post-content{font-size:13px;line-height:1.6;margin-top:6px}.del-btn{padding:2px 8px;border:none;border-radius:4px;background:#e74c3c;color:#fff;cursor:pointer;font-size:10px;margin-left:auto}.del-btn:hover{background:#c0392b}.ab{padding:6px 16px;border:1px solid #dbeaff;border-radius:6px;background:#fff;color:#007acc;cursor:pointer;font-size:12px;margin:3px}.ab.p{background:#007acc;color:#fff}'+userCardCss()+'</style><div class="c"><h2>'+esc(d.title)+'</h2>'+opMeta+'<div class="content">'+(discContent||esc(d.content||''))+'</div></div><div class="c"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><h3 style="margin:0;font-size:14px;color:#007acc">\u5E16\u5B50\u5217\u8868 ('+posts.length+')</h3><button class="ab p" id="btnNewDiscussion">\u64B0\u5199\u8BA8\u8BBA</button></div>'+postsHtml+'</div><script>var _pid="'+esc(pid)+'";var _forumDid="'+esc(forumDid)+'";function vm(m){(window.vscodeApi||acquireVsCodeApi()).postMessage(m)}document.getElementById("btnNewDiscussion").onclick=function(){if(_forumDid){vm({command:"replyDiscussion",id:_forumDid})}else{vm({command:"newDiscussion",problemId:_pid})}};document.querySelectorAll(".del-btn").forEach(function(b){b.onclick=function(e){e.stopPropagation();vm({command:"confirmDeletePost",delUrl:this.dataset.delurl})}});</script><script>'+userCardScript()+'</script>');
+    '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333}.c{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}h2{font-size:17px;margin:0 0 10px}.meta{font-size:12px;color:#888;margin-bottom:8px}.content{line-height:1.7;font-size:14px;margin-bottom:8px}.content img,.post-content img{max-width:100%}.content ul,.content ol,.post-content ul,.post-content ol{padding-left:24px;margin:8px 0}.content li,.post-content li{margin:4px 0}'+
+    '.yzoj-md-ul,.yzoj-md-ol{padding-left:2em;margin:0.5em 0}.yzoj-md-ol{counter-reset:yzoj-counter}.yzoj-md-li{margin:0.2em 0}.yzoj-md-li p{display:inline;margin:0}.yzoj-md-ul>.yzoj-md-li::before{content:"\\2022 ";display:inline}.yzoj-md-ol>.yzoj-md-li::before{counter-increment:yzoj-counter;content:counter(yzoj-counter) ". ";display:inline}'+
+    '.post{border-bottom:1px solid #eee;padding:12px 0}.post:last-child{border-bottom:none}.post-header{font-weight:600;font-size:12px;margin-bottom:6px;color:#555;display:flex;align-items:center;gap:8px}.post-floor{display:inline-block;padding:2px 8px;background:#007acc;color:#fff;border-radius:12px;font-size:11px;margin-right:8px;font-weight:700}.post-content{font-size:13px;line-height:1.6;margin-top:6px}.del-btn{padding:2px 8px;border:none;border-radius:4px;background:#e74c3c;color:#fff;cursor:pointer;font-size:10px;margin-left:auto}.del-btn:hover{background:#c0392b}.ab{padding:6px 16px;border:1px solid #dbeaff;border-radius:6px;background:#fff;color:#007acc;cursor:pointer;font-size:12px;margin:3px}.ab.p{background:#007acc;color:#fff}'+userCardCss()+'</style><div class="c"><h2>'+esc(d.title)+'</h2>'+opMeta+'<div class="content">'+(discContent||esc(d.content||''))+'</div></div><div class="c"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><h3 style="margin:0;font-size:14px;color:#007acc">\u5E16\u5B50\u5217\u8868 ('+posts.length+')</h3><button class="ab p" id="btnNewDiscussion">\u64B0\u5199\u8BA8\u8BBA</button></div>'+postsHtml+'</div><script>var _pid="'+esc(pid)+'";var _forumDid="'+esc(forumDid)+'";function vm(m){(window.vscodeApi||acquireVsCodeApi()).postMessage(m)}document.getElementById("btnNewDiscussion").onclick=function(){if(_forumDid){vm({command:"replyDiscussion",id:_forumDid})}else{vm({command:"newDiscussion",problemId:_pid})}};document.querySelectorAll(".del-btn").forEach(function(b){b.onclick=function(e){e.stopPropagation();vm({command:"confirmDeletePost",delUrl:this.dataset.delurl})}});</script><script>'+userCardScript()+'</script>');
 }
 
 function getFullDiscussionListWebview(data,b){
@@ -2002,6 +2035,30 @@ function getUserWebview(data,b){
       if(tot>0||r.total>0)outRows.push(r);
     }
     outRows.sort(function(a,b){return a.period<b.period?-1:1;});
+    // 只保留近 1 年（12 个月）的数据，多余舍弃
+    if(outRows.length>0){
+      var _now=new Date();
+      var _cutYY=_now.getFullYear(),_cutMM=_now.getMonth()+1-12;
+      while(_cutMM<=0){_cutYY--;_cutMM+=12;}
+      var cutoff=_cutYY*100+_cutMM; // e.g. 202506
+      var firstRow=outRows[0];
+      var fm=/^(\d{4})\-(\d{2})/.exec(firstRow.period);
+      if(fm){
+        var firstVal=parseInt(fm[1])*100+parseInt(fm[2]);
+        if(firstVal<cutoff){
+          // 剪掉旧数据，只保留最近 12 个月
+          var cropped=[];
+          for(var ci=outRows.length-1;ci>=0;ci--){
+            var cm=/^(\d{4})\-(\d{2})/.exec(outRows[ci].period);
+            if(cm){
+              var cv=parseInt(cm[1])*100+parseInt(cm[2]);
+              if(cv>=cutoff)cropped.unshift(outRows[ci]);
+            }
+          }
+          if(cropped.length>0)outRows=cropped;
+        }
+      }
+    }
     return {rows:outRows};
   }
   function renderActivityChart(activityData){
@@ -2365,7 +2422,7 @@ function getProblemSetListWebview(sets,b,username,currentKeyword,currentSort,cur
 function getProblemSetEditorWebview(data,b,currentUser){
   var isEdit=data&&data.id;
   var titleVal=esc(data?data.title||'':'');
-  var descVal=esc(data?data.description||'':'');
+  var initialDesc=JSON.stringify(data?data.description||'':'');
   var isPublicVal=data&&data.is_public?'checked':'';
   var probIds=esc(data?data.problem_ids||'':'');
   var permissionVal=data?data.permission||'public':'';
@@ -2378,6 +2435,8 @@ function getProblemSetEditorWebview(data,b,currentUser){
   allowedUsers=allowedUsers.filter(function(u,i,a){return a.indexOf(u)===i;});
   deniedUsers=deniedUsers.filter(function(u,i,a){return a.indexOf(u)===i;});
   var currentUsername=currentUser||'';
+  var mpCss='<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/markdown-palettes/dist/markdown-palettes.css">';
+  var mpJs='<script src="https://cdn.jsdelivr.net/npm/markdown-palettes/dist/markdown-palettes.js"><\/script>';
   var allowedHtml='';
   allowedUsers.forEach(function(u){allowedHtml+='<span class="user-tag" data-uid="'+esc(u)+'">'+esc(u)+'<span class="remove" onclick="removeAllowed(\''+esc(u)+'\')">×</span></span>';});
   var deniedHtml='';
@@ -2391,17 +2450,21 @@ function getProblemSetEditorWebview(data,b,currentUser){
     'var currentUser=' + JSON.stringify(currentUsername) + ';',
     'function vm(m){v.postMessage(m)}',
     'function escHtml(t){if(!t)return"";return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/\\x27/g,"&#039;")}',
-    'function md2html(t){if(!t)return"";var latexBlocks=[];var idx=0;var h=t;h=h.replace(/\\$\\$([\\s\\S]*?)\\$\\$/g,function(m){var key="%%LATEX_BLOCK_"+idx+"%%";latexBlocks.push(m);idx++;return key});h=h.replace(/\\$([^\\$\\n]+?)\\$/g,function(m){var key="%%LATEX_INLINE_"+idx+"%%";latexBlocks.push(m);idx++;return key});h=escHtml(h);h=h.replace(/```(\\w*)\\n([\\s\\S]*?)```/g,"<pre><code>$2</code></pre>");h=h.replace(/`([^`]+)`/g,"<code>$1</code>");h=h.replace(/\\*\\*\\*(.+?)\\*\\*\\*/g,"<strong><em>$1</em></strong>");h=h.replace(/\\*\\*(.+?)\\*\\*/g,"<strong>$1</strong>");h=h.replace(/\\*(.+?)\\*/g,"<em>$1</em>");h=h.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g,"<a href=\'$2\' target=\'_blank\' style=\'color:#007acc\'>$1</a>");h=h.replace(/!\\[([^\\]]*)\\]\\(([^)]+)\\)/g,"<img src=\'$2\' alt=\'$1\' style=\'max-width:100%;border-radius:4px;margin:8px 0\'>");h=h.replace(/^### (.+)$/gm,"<h4 style=\'color:#007acc;margin:12px 0 4px\'>$1</h4>");h=h.replace(/^## (.+)$/gm,"<h3 style=\'color:#007acc;margin:12px 0 4px\'>$1</h3>");h=h.replace(/^# (.+)$/gm,"<h2 style=\'color:#007acc;margin:12px 0 4px\'>$1</h2>");h=h.replace(/^- (.+)$/gm,"<li>$1</li>");h=h.replace(/(<li>.*<\\/li>\\n?)+/g,"<ul style=\'padding-left:20px;margin:4px 0\'>$&</ul>");h=h.replace(/^\\d+\\. (.+)$/gm,"<li>$1</li>");h=h.replace(/\\n\\n/g,"</p><p style=\'margin:8px 0\'>");h=h.replace(/\\n/g,"<br>");idx=0;while(latexBlocks.length>0){var blk=latexBlocks.shift();h=h.replace("%%LATEX_BLOCK_"+idx+"%%",blk);h=h.replace("%%LATEX_INLINE_"+idx+"%%",blk);idx++}return"<p style=\'margin:8px 0\'>"+h+"</p>"}',
-    'function updatePreview(){var md=document.getElementById("psDesc").value;var p=document.getElementById("psDescPreview");if(!md){p.innerHTML="<span style=\'color:#999\'>\u6682\u65E0\u63CF\u8FF0</span>";return}var h=md2html(md);p.innerHTML=h;if(typeof renderMathInElement==="function"){try{renderMathInElement(p,{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false}],throwOnError:false})}catch(e){}}}',
-    'document.getElementById("psDesc").oninput=updatePreview;',
-    'setTimeout(updatePreview,100);',
+    'var mpEditor=null;',
+    '(function initMdEditor(){',
+      'try{',
+        'if(!window.MarkdownPalettes){setTimeout(initMdEditor,200);return}',
+        'mpEditor=new MarkdownPalettes("#mpEditor");',
+        'mpEditor.content='+initialDesc+';',
+      '}catch(e){setTimeout(initMdEditor,500)}',
+    '})();',
     'document.getElementById("psPermission").onchange=function(){var val=this.value;document.getElementById("psPasswordField").style.display=val==="password"?"block":"none";document.getElementById("psWhitelistField").style.display=val==="whitelist"?"block":"none";document.getElementById("psBlacklistField").style.display=val==="blacklist"?"block":"none"};',
-    'function addAllowedUser(uid){if(!uid)return;if(uid===currentUser){alert("\u4E0D\u80FD\u5C06\u81EA\u8EAB\u52A0\u5165\u53EF\u8BBF\u95EE\u5217\u8868");return}if(allowedList.indexOf(uid)!==-1){alert("\u7528\u6237\u5DF2\u5728\u5217\u8868\u4E2D");return}allowedList.push(uid);renderAllowedUsers()}',
+    'function addAllowedUser(uid){if(!uid||!uid.trim()){alert("\u8BF7\u8F93\u5165\u6709\u6548\u7684\u7528\u6237\u540D");return}uid=uid.trim();if(uid===currentUser){alert("\u4E0D\u80FD\u5C06\u81EA\u8EAB\u52A0\u5165\u53EF\u8BBF\u95EE\u5217\u8868");return}if(allowedList.indexOf(uid)!==-1){alert("\u7528\u6237\u5DF2\u5728\u5217\u8868\u4E2D");return}allowedList.push(uid);deniedList=deniedList.filter(function(u){return u!==uid});renderAllowedUsers();renderDeniedUsers()}',
     'function removeAllowed(uid){allowedList=allowedList.filter(function(u){return u!==uid});renderAllowedUsers()}',
-    'function renderAllowedUsers(){var html="";allowedList.forEach(function(u){html+="<span class=\'user-tag\' data-uid=\'"+esc(u)+"\'>"+esc(u)+"<span class=\'remove\' onclick=\'removeAllowed(\\x27"+esc(u)+"\\x27)\'>×</span></span>"});document.getElementById("allowedUsers").innerHTML=html}',
-    'function addDeniedUser(uid){if(!uid)return;if(uid===currentUser){alert("\u4E0D\u80FD\u5C06\u81EA\u8EAB\u52A0\u5165\u7981\u6B62\u8BBF\u95EE\u5217\u8868");return}if(deniedList.indexOf(uid)!==-1){alert("\u7528\u6237\u5DF2\u5728\u5217\u8868\u4E2D");return}deniedList.push(uid);renderDeniedUsers()}',
+    'function renderAllowedUsers(){var html="";allowedList.forEach(function(u){html+="<span class=\'user-tag\' data-uid=\'"+escHtml(u)+"\'>"+escHtml(u)+"<span class=\'remove\' onclick=\'removeAllowed(\\x27"+escHtml(u)+"\\x27)\'>×</span></span>"});var el=document.getElementById("allowedUsers");if(el)el.innerHTML=html}',
+    'function addDeniedUser(uid){if(!uid||!uid.trim()){alert("\u8BF7\u8F93\u5165\u6709\u6548\u7684\u7528\u6237\u540D");return}uid=uid.trim();if(uid===currentUser){alert("\u4E0D\u80FD\u5C06\u81EA\u8EAB\u52A0\u5165\u7981\u6B62\u8BBF\u95EE\u5217\u8868");return}if(deniedList.indexOf(uid)!==-1){alert("\u7528\u6237\u5DF2\u5728\u5217\u8868\u4E2D");return}deniedList.push(uid);allowedList=allowedList.filter(function(u){return u!==uid});renderDeniedUsers();renderAllowedUsers()}',
     'function removeDenied(uid){deniedList=deniedList.filter(function(u){return u!==uid});renderDeniedUsers()}',
-    'function renderDeniedUsers(){var html="";deniedList.forEach(function(u){html+="<span class=\'user-tag\' data-uid=\'"+esc(u)+"\'>"+esc(u)+"<span class=\'remove\' onclick=\'removeDenied(\\x27"+esc(u)+"\\x27)\'>×</span></span>"});document.getElementById("deniedUsers").innerHTML=html}',
+    'function renderDeniedUsers(){var html="";deniedList.forEach(function(u){html+="<span class=\'user-tag\' data-uid=\'"+escHtml(u)+"\'>"+escHtml(u)+"<span class=\'remove\' onclick=\'removeDenied(\\x27"+escHtml(u)+"\\x27)\'>×</span></span>"});var el=document.getElementById("deniedUsers");if(el)el.innerHTML=html}',
     'var allowedTimer=null;',
     'document.getElementById("allowedUserInput").oninput=function(){var inp=this;clearTimeout(allowedTimer);allowedTimer=setTimeout(function(){var val=inp.value.trim();if(val){v.postMessage({command:"searchUsers",keyword:val,source:"allowed"})}else{document.getElementById("allowedSug").innerHTML=""}},300)};',
     'document.getElementById("btnAddAllowed").onclick=function(){var val=document.getElementById("allowedUserInput").value.trim();if(val){addAllowedUser(val);document.getElementById("allowedUserInput").value="";document.getElementById("allowedSug").innerHTML=""}};',
@@ -2409,7 +2472,7 @@ function getProblemSetEditorWebview(data,b,currentUser){
     'document.getElementById("deniedUserInput").oninput=function(){var inp=this;clearTimeout(deniedTimer);deniedTimer=setTimeout(function(){var val=inp.value.trim();if(val){v.postMessage({command:"searchUsers",keyword:val,source:"denied"})}else{document.getElementById("deniedSug").innerHTML=""}},300)};',
     'document.getElementById("btnAddDenied").onclick=function(){var val=document.getElementById("deniedUserInput").value.trim();if(val){addDeniedUser(val);document.getElementById("deniedUserInput").value="";document.getElementById("deniedSug").innerHTML=""}};',
     'window.addEventListener("message",function(e){if(e.data.command==="userSearchResult"){var sug=e.data.results||[];var src=e.data.source||"allowed";var targetId=src==="denied"?"deniedSug":"allowedSug";var addFn=src==="denied"?"addDeniedUser":"addAllowedUser";var html="";sug.forEach(function(u){html+="<div class=\'sug-item\' onclick=\'"+addFn+"(\\x27"+esc(u.username)+"\\x27);document.getElementById(\\x27"+targetId+"\\x27).innerHTML=\\x27\\x27\'>"+esc(u.username)+" ("+(u.id||"")+")</div>"});document.getElementById(targetId).innerHTML=html}});',
-    'document.getElementById("btnSave").onclick=function(){var title=document.getElementById("psTitle").value.trim();if(!title){alert("\u8BF7\u8F93\u5165\u9898\u5355\u6807\u9898");return}var pids=document.getElementById("psPids").value;if(!pids||!pids.trim()){alert("\u8BF7\u81F3\u5C11\u8F93\u5165\u4E00\u9053\u9898\u76EEID");return}var dedupPids=[...new Set(pids.split(",").map(function(s){return s.trim()}).filter(Boolean))].join(",");v.postMessage({command:"saveProblemSet",id:psid,title:title,description:document.getElementById("psDesc").value,permission:document.getElementById("psPermission").value,is_public:document.getElementById("psPermission").value==="public",password:document.getElementById("psPassword").value,allowed_users:allowedList.join(","),denied_users:deniedList.join(","),problem_ids:dedupPids})};'
+    'document.getElementById("btnSave").onclick=function(){var title=document.getElementById("psTitle").value.trim();if(!title){alert("\u8BF7\u8F93\u5165\u9898\u5355\u6807\u9898");return}var pids=document.getElementById("psPids").value;if(!pids||!pids.trim()){alert("\u8BF7\u81F3\u5C11\u8F93\u5165\u4E00\u9053\u9898\u76EEID");return}var dedupPids=[...new Set(pids.split(",").map(function(s){return s.trim()}).filter(Boolean))].join(",");v.postMessage({command:"saveProblemSet",id:psid,title:title,description:mpEditor?mpEditor.content:"",permission:document.getElementById("psPermission").value,is_public:document.getElementById("psPermission").value==="public",password:document.getElementById("psPassword").value,allowed_users:allowedList.join(","),denied_users:deniedList.join(","),problem_ids:dedupPids})};'
   ];
   
   if(isEdit){
@@ -2419,7 +2482,11 @@ function getProblemSetEditorWebview(data,b,currentUser){
   var scriptCode = scriptParts.join('');
   
   return wrapWithMathJax('\u9898\u5355\u7F16\u8F91',
-    '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:13px}h2{font-size:17px;margin:0 0 10px}.c{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}.fr{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;align-items:center}.fr input,.fr select,.fr textarea{flex:1;min-width:60px;padding:5px 8px;border:1px solid #dbeaff;border-radius:5px;font-size:12px}.preview-box{background:#f8f9fb;border:1px solid #e1e4e8;border-radius:6px;padding:12px;margin:6px 0;min-height:60px;font-size:13px;line-height:1.6;overflow-x:auto}.preview-box img{max-width:100%;border-radius:4px}.preview-box table{border-collapse:collapse;margin:8px 0;font-size:12px}.preview-box th,.preview-box td{padding:4px 6px;border:1px solid #ddd;text-align:center}.preview-box pre{background:#f0f0f0;padding:8px;border-radius:4px;font-size:12px;overflow-x:auto}.ab{padding:6px 16px;border:1px solid #dbeaff;border-radius:6px;background:#fff;color:#007acc;cursor:pointer;font-size:12px;margin:3px}.ab.p{background:#007acc;color:#fff}.ab.danger{background:#cf222e;color:#fff;border-color:#cf222e}.user-tag{display:inline-block;background:#e6f0fa;color:#007acc;padding:3px 10px 3px 8px;border-radius:14px;font-size:12px;margin:2px;position:relative}.user-tag .remove{margin-left:6px;cursor:pointer;color:#007acc;font-weight:700}.user-tag .remove:hover{color:#cf222e}.user-search-box{display:flex;gap:4px;margin-bottom:6px}.user-search-box input{flex:1;padding:4px 8px;border:1px solid #dbeaff;border-radius:4px;font-size:12px}.user-search-box button{padding:4px 10px;border:1px solid #dbeaff;border-radius:4px;background:#fff;color:#007acc;cursor:pointer;font-size:12px}.sug-list{border:1px solid #dbeaff;border-radius:4px;background:#fff;max-height:150px;overflow-y:auto;margin-bottom:6px}.sug-item{padding:6px 10px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:12px}.sug-item:hover{background:#e6f0fa}</style><h2>'+(isEdit?'\u7F16\u8F91\u9898\u5355':'\u521B\u5EFA\u9898\u5355')+'</h2><div class="c"><div class="fr" style="margin-bottom:8px"><label>\u6807\u9898:</label><input type="text" id="psTitle" value="'+titleVal+'" style="flex:1;padding:6px 10px;border:1px solid #dbeaff;border-radius:6px"></div><div class="fr" style="margin-bottom:8px"><label>\u63CF\u8FF0 (\u652F\u6301Markdown+LaTeX):</label></div><textarea id="psDesc" style="width:100%;padding:6px 10px;border:1px solid #dbeaff;border-radius:6px;height:80px;font-family:monospace;font-size:13px">'+descVal+'</textarea><div class="fr" style="margin:4px 0"><label>\u9884\u89C8:</label></div><div class="preview-box" id="psDescPreview">\u52A0\u8F7D\u4E2D...</div><div class="fr" style="margin-bottom:8px"><label>\u6743\u9650\u7C7B\u578B:</label><select id="psPermission"><option value="public"'+(permissionVal==='public'?' selected':'')+'>\u516C\u5F00</option><option value="private"'+(permissionVal==='private'?' selected':'')+'>\u79C1\u5BC6</option><option value="password"'+(permissionVal==='password'?' selected':'')+'>\u5BC6\u7801\u4FDD\u62A4</option><option value="whitelist"'+(permissionVal==='whitelist'?' selected':'')+'>\u6307\u5B9A\u7528\u6237\u53EF\u8BBF\u95EE</option><option value="blacklist"'+(permissionVal==='blacklist'?' selected':'')+'>\u6307\u5B9A\u7528\u6237\u4E0D\u53EF\u8BBF\u95EE</option></select></div><div id="psPasswordField" style="display:'+(permissionVal==='password'?'block':'none')+';margin-bottom:8px"><div class="fr"><label>\u5BC6\u7801:</label><input type="password" id="psPassword" value="'+passwordVal+'" placeholder="'+passwordPlaceholder+'" style="flex:1;padding:6px 10px;border:1px solid #dbeaff;border-radius:6px"></div></div><div id="psWhitelistField" style="display:'+(permissionVal==='whitelist'?'block':'none')+';margin-bottom:8px"><label>\u53EF\u8BBF\u95EE\u7528\u6237:</label><div id="allowedUsers">'+allowedHtml+'</div><div class="user-search-box"><input type="text" id="allowedUserInput" placeholder="\u8F93\u5165\u7528\u6237\u540D..." autocomplete="off"><button id="btnAddAllowed">+</button></div><div id="allowedSug" class="sug-list"></div></div><div id="psBlacklistField" style="display:'+(permissionVal==='blacklist'?'block':'none')+';margin-bottom:8px"><label>\u4E0D\u53EF\u8BBF\u95EE\u7528\u6237:</label><div id="deniedUsers">'+deniedHtml+'</div><div class="user-search-box"><input type="text" id="deniedUserInput" placeholder="\u8F93\u5165\u7528\u6237\u540D..." autocomplete="off"><button id="btnAddDenied">+</button></div><div id="deniedSug" class="sug-list"></div></div><div class="fr" style="margin-bottom:8px"><label>\u9898\u76EEIDs (\u9017\u53F7\u5206\u9694):</label><input type="text" id="psPids" value="'+probIds+'" style="flex:1;padding:6px 10px;border:1px solid #dbeaff;border-radius:6px"></div><div style="text-align:center;margin-top:12px"><button class="ab p" id="btnSave">'+(isEdit?'\u4FDD\u5B58\u4FEE\u6539':'\u521B\u5EFA\u9898\u5355')+'</button>'+(isEdit?'<button class="ab danger" id="btnDelete">\u5220\u9664\u9898\u5355</button>':'')+'<button class="ab" onclick="vm({command:\'cancelEdit\'})">\u53D6\u6D88</button></div></div>'+
+    '<style>body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:13px}h2{font-size:17px;margin:0 0 10px}.c{background:#fff;border-radius:10px;padding:16px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}.fr{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px;align-items:center}.fr input,.fr select,.fr textarea{flex:1;min-width:60px;padding:5px 8px;border:1px solid #dbeaff;border-radius:5px;font-size:12px}.ab{padding:6px 16px;border:1px solid #dbeaff;border-radius:6px;background:#fff;color:#007acc;cursor:pointer;font-size:12px;margin:3px}.ab.p{background:#007acc;color:#fff}.ab.danger{background:#cf222e;color:#fff;border-color:#cf222e}.user-tag{display:inline-block;background:#e6f0fa;color:#007acc;padding:3px 10px 3px 8px;border-radius:14px;font-size:12px;margin:2px;position:relative}.user-tag .remove{margin-left:6px;cursor:pointer;color:#007acc;font-weight:700}.user-tag .remove:hover{color:#cf222e}.user-search-box{display:flex;gap:4px;margin-bottom:6px}.user-search-box input{flex:1;padding:4px 8px;border:1px solid #dbeaff;border-radius:4px;font-size:12px}.user-search-box button{padding:4px 10px;border:1px solid #dbeaff;border-radius:4px;background:#fff;color:#007acc;cursor:pointer;font-size:12px}.sug-list{border:1px solid #dbeaff;border-radius:4px;background:#fff;max-height:150px;overflow-y:auto;margin-bottom:6px}.sug-item{padding:6px 10px;cursor:pointer;border-bottom:1px solid #f0f0f0;font-size:12px}.sug-item:hover{background:#e6f0fa}</style><h2>'+(isEdit?'\u7F16\u8F91\u9898\u5355':'\u521B\u5EFA\u9898\u5355')+'</h2><div class="c"><div class="fr" style="margin-bottom:8px"><label>\u6807\u9898:</label><input type="text" id="psTitle" value="'+titleVal+'" style="flex:1;padding:6px 10px;border:1px solid #dbeaff;border-radius:6px"></div><div class="fr" style="margin-bottom:8px"><label>\u63CF\u8FF0 (\u652F\u6301Markdown+LaTeX):</label></div>'+
+    mpCss+
+    '<div id="mpEditorContainer" style="height:300px;border-radius:8px;overflow:hidden;border:1px solid #dbeaff;margin-bottom:8px"><div id="mpEditor"></div></div>'+
+    '<div class="fr" style="margin-bottom:8px"><label>\u6743\u9650\u7C7B\u578B:</label><select id="psPermission"><option value="public"'+(permissionVal==='public'?' selected':'')+'>\u516C\u5F00</option><option value="private"'+(permissionVal==='private'?' selected':'')+'>\u79C1\u5BC6</option><option value="password"'+(permissionVal==='password'?' selected':'')+'>\u5BC6\u7801\u4FDD\u62A4</option><option value="whitelist"'+(permissionVal==='whitelist'?' selected':'')+'>\u6307\u5B9A\u7528\u6237\u53EF\u8BBF\u95EE</option><option value="blacklist"'+(permissionVal==='blacklist'?' selected':'')+'>\u6307\u5B9A\u7528\u6237\u4E0D\u53EF\u8BBF\u95EE</option></select></div><div id="psPasswordField" style="display:'+(permissionVal==='password'?'block':'none')+';margin-bottom:8px"><div class="fr"><label>\u5BC6\u7801:</label><input type="password" id="psPassword" value="'+passwordVal+'" placeholder="'+passwordPlaceholder+'" style="flex:1;padding:6px 10px;border:1px solid #dbeaff;border-radius:6px"></div></div><div id="psWhitelistField" style="display:'+(permissionVal==='whitelist'?'block':'none')+';margin-bottom:8px"><label>\u53EF\u8BBF\u95EE\u7528\u6237:</label><div id="allowedUsers">'+allowedHtml+'</div><div class="user-search-box"><input type="text" id="allowedUserInput" placeholder="\u8F93\u5165\u7528\u6237\u540D..." autocomplete="off"><button id="btnAddAllowed">+</button></div><div id="allowedSug" class="sug-list"></div></div><div id="psBlacklistField" style="display:'+(permissionVal==='blacklist'?'block':'none')+';margin-bottom:8px"><label>\u4E0D\u53EF\u8BBF\u95EE\u7528\u6237:</label><div id="deniedUsers">'+deniedHtml+'</div><div class="user-search-box"><input type="text" id="deniedUserInput" placeholder="\u8F93\u5165\u7528\u6237\u540D..." autocomplete="off"><button id="btnAddDenied">+</button></div><div id="deniedSug" class="sug-list"></div></div><div class="fr" style="margin-bottom:8px"><label>\u9898\u76EEIDs (\u9017\u53F7\u5206\u9694):</label><input type="text" id="psPids" value="'+probIds+'" style="flex:1;padding:6px 10px;border:1px solid #dbeaff;border-radius:6px"></div><div style="text-align:center;margin-top:12px"><button class="ab p" id="btnSave">'+(isEdit?'\u4FDD\u5B58\u4FEE\u6539':'\u521B\u5EFA\u9898\u5355')+'</button>'+(isEdit?'<button class="ab danger" id="btnDelete">\u5220\u9664\u9898\u5355</button>':'')+'<button class="ab" onclick="vm({command:\'cancelEdit\'})">\u53D6\u6D88</button></div></div>'+
+    mpJs +
     '<script>' + scriptCode + '</script>', b);
 }
 
@@ -2470,7 +2537,7 @@ function getProblemSetDetailWebview(set,problems,b,username,problemMarks){
   var descHtml='';
   if(set.description){
     if(set.description.indexOf(String.fromCharCode(60))>=0)descHtml=set.description;
-    else descHtml=mdToHtml(set.description);
+    else descHtml=mdLatexToHtml(set.description);
   }
   var ownerButtons='';
   if(isOwner)ownerButtons='<div style="text-align:center;margin-top:16px"><button class="ab edit" id="btnEditSet">\u7F16\u8F91\u9898\u5355</button><button class="ab danger" id="btnDeleteSet">\u5220\u9664\u9898\u5355</button></div>';
@@ -2587,6 +2654,1341 @@ function getUserDetailWebview(data) {
     '<div class="c"><h2 style="font-size:14px;margin-bottom:8px">已解决问题 (' + (data.solved_problems ? data.solved_problems.length : 0) + ')</h2><div class="solved-container">' + (solvedListHtml || '<span style="color:#888">暂无</span>') + '</div></div>');
 }
 
+function getTestDataListWebview(rawHtml, problemId, baseUrl, username) {
+  // 尝试从 HTML 中提取测试数据信息
+  var testCases = [];
+  var subtasks = [];
+  var timeLimit = '', memoryLimit = '';
+  
+  // 简单提取：查找表格行
+  var lines = rawHtml.split('\n');
+  var inTable = false;
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    // 提取时间/内存限制
+    var tlM = line.match(/时间[^]*?限制[^0-9]*(\d+)\s*(MS|毫秒)/i);
+    if (tlM) timeLimit = tlM[1] + ' ' + (tlM[2] || 'MS');
+    var mlM = line.match(/内存[^]*?限制[^0-9]*(\d+)\s*(KB|MB)/i);
+    if (mlM) memoryLimit = mlM[1] + ' ' + (mlM[2] || 'KB');
+    // 提取测试点表格行
+    if (line.indexOf('<td>data') >= 0 || line.indexOf('>data') >= 0) {
+      var tdMatch = line.match(/<td[^>]*>([\s\S]*?)<\/td>/g);
+      if (tdMatch && tdMatch.length >= 4) {
+        var name = tdMatch[0].replace(/<[^>]+>/g,'').trim();
+        var inputFile = tdMatch[1].replace(/<[^>]+>/g,'').trim();
+        var outputFile = tdMatch[2].replace(/<[^>]+>/g,'').trim();
+        var tLim = tdMatch[3].replace(/<[^>]+>/g,'').trim();
+        testCases.push({ name: name, input: inputFile, output: outputFile, time: tLim });
+      }
+    }
+  }
+  
+  var testCasesHtml = '';
+  if (testCases.length > 0) {
+    testCases.forEach(function(tc, i) {
+      testCasesHtml += '<div class="tc-item" data-index="' + i + '">' +
+        '<span class="tc-idx">#' + (i+1) + '</span>' +
+        '<span class="tc-name">' + esc(tc.name) + '</span>' +
+        '<span class="tc-file">' + esc(tc.input) + ' → ' + esc(tc.output) + '</span>' +
+        '<span class="tc-time">' + esc(tc.time) + '</span>' +
+        '<button class="tc-dl" data-filename="' + esc(tc.name) + '" data-problem="' + esc(problemId) + '">下载</button>' +
+        '</div>';
+    });
+  } else {
+    testCasesHtml = '<div style="text-align:center;padding:20px;color:#888">未解析到测试数据，请查看原始页面</div>';
+  }
+  
+  return wrapWithMathJax('测试数据 P' + problemId,
+    '<style>' +
+    '*{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:14px}' +
+    'h2{font-size:18px;color:#007acc;border-bottom:2px solid #007acc;padding-bottom:8px;margin:0 0 16px}' +
+    '.meta{font-size:12px;color:#888;margin-bottom:12px}' +
+    '.card{background:#fff;border-radius:10px;padding:16px;box-shadow:0 1px 4px rgba(0,0,0,0.08)}' +
+    '.tc-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid #f0f0f0;font-size:13px}' +
+    '.tc-item:hover{background:#f8fafb}' +
+    '.tc-idx{font-weight:700;color:#007acc;min-width:30px}' +
+    '.tc-name{font-weight:500;min-width:80px}' +
+    '.tc-file{flex:1;color:#555}' +
+    '.tc-time{color:#888;min-width:60px;text-align:right}' +
+    '.tc-dl{padding:4px 12px;border:1px solid #007acc;border-radius:5px;background:#fff;color:#007acc;cursor:pointer;font-size:12px}' +
+    '.tc-dl:hover{background:#007acc;color:#fff}' +
+    '.dl-link{display:block;text-align:center;padding:10px;margin:12px 0;background:#007acc;color:#fff;border-radius:8px;text-decoration:none;font-size:14px;cursor:pointer}' +
+    '</style>' +
+    '<h2>测试数据 P' + esc(problemId) + '</h2>' +
+    (timeLimit||memoryLimit?'<div class="meta">'+(timeLimit?'时间限制: '+esc(timeLimit):'')+(memoryLimit?' · 内存限制: '+esc(memoryLimit):'')+'</div>':'') +
+    '<div class="card">' +
+    '<div class="tc-item header" style="font-weight:600;color:#555;background:#f6f8fa;border-radius:6px 6px 0 0">' +
+    '<span class="tc-idx">#</span><span class="tc-name">名称</span><span class="tc-file">输入 → 输出</span><span class="tc-time">时限</span><span style="min-width:60px"></span>' +
+    '</div>' +
+    testCasesHtml +
+    '</div>' +
+    '<div class="dl-link" id="btnDownloadAll">下载全部测试数据 (Data_P' + esc(problemId) + '.zip)</div>' +
+    '<script>' +
+    'var v=window.vscodeApi||acquireVsCodeApi();' +
+    'document.querySelectorAll(".tc-dl").forEach(function(b){b.onclick=function(){v.postMessage({command:"downloadFile",url:"'+baseUrl+'/OnlineJudge/Data/'+esc(problemId)+'/"+b.dataset.filename})}});' +
+    'document.getElementById("btnDownloadAll").onclick=function(){v.postMessage({command:"downloadFile",url:"'+baseUrl+'/OnlineJudge/Data_P'+esc(problemId)+'.zip"})}' +
+    '</script>', baseUrl);
+}
+
+// ===== 更新用户信息页面 =====
+function getUpdateUserInfoWebview(rawHtml, baseUrl, username) {
+  return wrapWithMathJax('更新信息',
+    '<style>' +
+    '*{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:14px}' +
+    'h2{font-size:18px;color:#007acc;border-bottom:2px solid #007acc;padding-bottom:8px;margin:0 0 16px}' +
+    '.form-group{margin-bottom:14px}' +
+    'label{display:block;font-weight:600;font-size:13px;color:#555;margin-bottom:4px}' +
+    'input{width:100%;padding:8px 10px;border:1px solid #d0d7de;border-radius:6px;font-size:13px}' +
+    'input:focus{border-color:#007acc;outline:none;box-shadow:0 0 0 2px rgba(0,122,204,0.15)}' +
+    'input:read-only{background:#f6f8fa;color:#888;cursor:not-allowed}' +
+    '.action-bar{text-align:center;padding:16px 0}' +
+    '.action-bar button{padding:8px 28px;border-radius:8px;cursor:pointer;font-size:14px;margin:0 6px}' +
+    '.btn-primary{background:#007acc;color:#fff;border:none}' +
+    '.btn-primary:hover{background:#005999}' +
+    '.btn-primary:disabled{background:#c0d8e8;cursor:not-allowed}' +
+    '.btn-default{background:#fff;color:#555;border:1px solid #d0d7de}' +
+    '.card{background:#fff;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,0.08);max-width:520px;margin:0 auto}' +
+    '.hint{font-size:11px;color:#888;margin-top:3px}' +
+    '</style>' +
+    '<div class="card">' +
+    '<h2>更新个人信息</h2>' +
+    '<form id="userForm">' +
+    '<div class="form-group"><label>用户名</label><input type="text" id="username" value="' + esc(username || '') + '" readonly></div>' +
+    '<div class="form-group"><label>原密码</label><input type="password" id="oldpass" placeholder="留空则不修改密码"></div>' +
+    '<div class="form-group"><label>新密码</label><input type="password" id="newpass" placeholder="留空则不修改"></div>' +
+    '<div class="form-group"><label>重复新密码</label><input type="password" id="repass" placeholder="再次输入新密码"></div>' +
+    '<div class="form-group"><label>E-Mail</label><input type="text" id="email" placeholder="输入邮箱"></div>' +
+    '<div class="form-group"><label>学校</label><input type="text" id="school" placeholder="输入学校"></div>' +
+    '</form>' +
+    '<div class="action-bar">' +
+    '<button class="btn-primary" id="btnSubmit">提交</button>' +
+    '<button class="btn-default" id="btnCancel">取消</button>' +
+    '</div>' +
+    '<div id="resultMsg" style="text-align:center;margin-top:12px;font-size:13px"></div>' +
+    '</div>' +
+    '<script>' +
+    'var v=window.vscodeApi||acquireVsCodeApi();' +
+    'document.getElementById("btnSubmit").onclick=function(){' +
+    'var email=document.getElementById("email").value.trim();' +
+    'var school=document.getElementById("school").value.trim();' +
+    'var oldpass=document.getElementById("oldpass").value;' +
+    'var newpass=document.getElementById("newpass").value;' +
+    'var repass=document.getElementById("repass").value;' +
+    'if(newpass&&newpass!==repass){document.getElementById("resultMsg").innerHTML=\'<span style="color:#cf222e">两次密码输入不一致</span>\';return}' +
+    'v.postMessage({command:"submitUpdateUserInfo",email:email,school:school,oldpass:oldpass,newpass:newpass,repass:repass})};' +
+    'document.getElementById("btnCancel").onclick=function(){v.postMessage({command:"cancelEditor"})};' +
+    'if(document.getElementById("oldpass"))document.getElementById("oldpass").onfocus=function(){document.getElementById("oldpass").type="text";document.getElementById("oldpass").type="password"};' +
+    'window.addEventListener("message",function(e){var d=e.data;if(d.command==="submitResult"){document.getElementById("resultMsg").innerHTML=d.success?' +
+    '?\'<span style="color:#2ea043">\'+d.message+\'</span>\':\'<span style="color:#cf222e">\'+d.message+\'</span>\'}})' +
+    '</script>', baseUrl);
+}
+
+// ===== 创建新比赛页面 =====
+// ===== 创建新题目页面 =====
+function getCreateProblemWebview(baseUrl, username) {
+  return wrapWithMathJax('创建新题目',
+    '<style>' +
+    '*{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:14px}' +
+    'h2{font-size:18px;color:#007acc;border-bottom:2px solid #007acc;padding-bottom:8px;margin:0 0 16px}' +
+    '.form-group{margin-bottom:14px}' +
+    'label{display:block;font-weight:600;font-size:13px;color:#555;margin-bottom:4px}' +
+    'input{width:100%;padding:8px 10px;border:1px solid #d0d7de;border-radius:6px;font-size:13px}' +
+    'input:focus{border-color:#007acc;outline:none;box-shadow:0 0 0 2px rgba(0,122,204,0.15)}' +
+    '.hint{font-size:11px;color:#888;margin-top:3px}' +
+    '.action-bar{text-align:center;padding:16px 0}' +
+    '.action-bar button{padding:8px 28px;border-radius:8px;cursor:pointer;font-size:14px;margin:0 6px}' +
+    '.btn-primary{background:#007acc;color:#fff;border:none}' +
+    '.btn-primary:hover{background:#005999}' +
+    '.btn-default{background:#fff;color:#555;border:1px solid #d0d7de}' +
+    '.card{background:#fff;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,0.08);max-width:520px;margin:0 auto}' +
+    '</style>' +
+    '<div class="card">' +
+    '<h2>创建新题目</h2>' +
+    '<form id="problemForm" onsubmit="return false;">' +
+    '<div class="form-group"><label>题目名称</label><input type="text" id="pname" placeholder="输入题目名称" required></div>' +
+    '<div class="form-group"><label>题目权限</label><input type="text" id="showmark" value="2" placeholder="2=默认权限"><div class="hint">设为 x，则用户类型 >= x 的用户可以查看</div></div>' +
+    '<div class="form-group"><label>出题人</label><input type="text" id="prop_uname" value="' + esc(username || '') + '"></div>' +
+    '</form>' +
+    '<div class="action-bar">' +
+    '<button class="btn-primary" id="btnSubmit">提交</button>' +
+    '<button class="btn-default" id="btnCancel">取消</button>' +
+    '</div>' +
+    '<div id="resultMsg" style="text-align:center;margin-top:12px;font-size:13px"></div>' +
+    '</div>' +
+    '<script>' +
+    'var v=window.vscodeApi||acquireVsCodeApi();' +
+    'document.getElementById("btnSubmit").onclick=function(){' +
+    'var pname=document.getElementById("pname").value.trim();' +
+    'if(!pname){document.getElementById("resultMsg").innerHTML=\'<span style="color:#cf222e">请输入题目名称</span>\';return}' +
+    'v.postMessage({command:"submitCreateProblem",' +
+    'pname:pname,' +
+    'showmark:document.getElementById("showmark").value.trim(),' +
+    'prop_uname:document.getElementById("prop_uname").value.trim()})};' +
+    'document.getElementById("btnCancel").onclick=function(){v.postMessage({command:"cancelEditor"})};' +
+    'window.addEventListener("message",function(e){var d=e.data;if(d.command==="submitResult"){document.getElementById("resultMsg").innerHTML=d.success?' +
+    '?\'<span style="color:#2ea043">\'+d.message+\'</span>\':\'<span style="color:#cf222e">\'+d.message+\'</span>\'}})' +
+    '</script>', baseUrl);
+}
+
+// ===== 编辑题目页面（含Tab：编辑题目 + 数据配置 + 帮助） =====
+function getEditProblemWebview(rawHtml, problemId, baseUrl, username, externalTagMap) {
+  // 解析原始HTML提取表单字段
+  var fields = {};
+  // 精确提取textarea字段
+  var extractTextarea = function(name) {
+    var re = new RegExp('<textarea\\s+[^>]*name="?' + name + '"?[^>]*>([\\s\\S]*?)</textarea>', 'i');
+    var m = rawHtml.match(re);
+    if (m) {
+      return m[1].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#039;/g,"'");
+    }
+    return '';
+  };
+  // 精确提取input字段
+  var extractInput = function(name) {
+    var re = new RegExp('<input\\s+[^>]*name="?' + name + '"?[^>]*value="([^"]*)"', 'i');
+    var m = rawHtml.match(re);
+    if (m) {
+      return m[1].replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#039;/g,"'");
+    }
+    return '';
+  };
+  // 提取checkbox字段（属性顺序无关）
+  var extractCheckbox = function(name) {
+    var re = new RegExp('<input\\s(?=[^>]*name="?' + name + '"?)(?=[^>]*type="checkbox")(?=[^>]*checked)[^>]*>', 'i');
+    return rawHtml.match(re) !== null;
+  };
+  
+  fields.pname = extractInput('pname') || 'P' + problemId;
+  fields.prop_uname = extractInput('prop_uname') || username;
+  fields.lev = extractInput('lev') || '1';
+  fields.timelimit = extractInput('timelimit') || '1000';
+  fields.memorylimit = extractInput('memorylimit') || '262144';
+  fields.showmark = extractInput('showmark') || '0';
+  fields.judgemark = extractCheckbox('judgemark');
+  fields.cflags = extractInput('cflags');
+  fields.pasflags = extractInput('pasflags');
+  fields.description = extractTextarea('description') || '';
+  fields.inputformat = extractTextarea('inputformat') || '';
+  fields.outputformat = extractTextarea('outputformat') || '';
+  fields.hint = extractTextarea('hint') || '';
+  fields.hiddenhint = extractTextarea('hiddenhint') || '';
+  
+  // 使用 htmlToMdLatex 提取原始 markdown 源码（与编辑题解一致）
+  fields.description = htmlToMdLatex(fields.description);
+  fields.inputformat = htmlToMdLatex(fields.inputformat);
+  fields.outputformat = htmlToMdLatex(fields.outputformat);
+  fields.hint = htmlToMdLatex(fields.hint);
+  fields.hiddenhint = htmlToMdLatex(fields.hiddenhint);
+  
+  // 提取出题人列表（使用|作为分割符）
+  var authors = [];
+  var propM = rawHtml.match(/name="prop_uname"[^>]*value="([^"]*)"/i);
+  if (propM) {
+    authors = propM[1].split(/[|,，、\s]+/).filter(function(s){return s.trim().length>0});
+  }
+  
+  // 提取标签 - YZOJ 通过 appendTag(id) JavaScript 调用添加标签
+  var tags = [];
+  var appendTagMatches = rawHtml.match(/appendTag\((\d+)\)/g);
+  if (appendTagMatches) {
+    tags = appendTagMatches.map(function(m) {
+      var idM = m.match(/appendTag\((\d+)\)/);
+      return idM ? idM[1] : '';
+    }).filter(function(t) { return t; });
+  }
+  // 使用外部传入的标签映射（从tag_list.php获取），如果没有则尝试从HTML中提取
+  var tagMap = externalTagMap || {};
+  // 如果外部没有提供标签映射，尝试从HTML中提取
+  if (!externalTagMap) {
+    var tagRe = /fullname_map\s*=\s*\{([\s\S]*?)\};/;
+    var tagMapM = rawHtml.match(tagRe);
+    if (tagMapM) {
+      try {
+        tagMap = {};
+        var tagStr = tagMapM[1].replace(/(['"])([^'"]+)\1\s*:\s*(['"])([^'"]+)\3/g, function(a, q1,k,q2,v){tagMap[k]=v;return '';});
+      } catch(e) {}
+    }
+  }
+  
+  // 提取样例数据（从 <script id="sampledata-old" type="text/json"> 标签中提取 JSON）
+  var samples = [];
+  try {
+    var sampleTagRe = /<script\s+id="sampledata-old"[^>]*type="text\/json"[^>]*>([\s\S]*?)<\/script>/i;
+    var sampleMatch = rawHtml.match(sampleTagRe);
+    if (sampleMatch) {
+      var jsonStr = sampleMatch[1].trim();
+      if (jsonStr) {
+        samples = JSON.parse(jsonStr);
+        // 从 hint 中提取 yzoj-md-source 注释内的 Markdown 源码（base64 编码）
+        for (var si = 0; si < samples.length; si++) {
+          if (samples[si].hint) {
+            var yzojMatch = samples[si].hint.match(/<!--\s*yzoj-md-source:\s*([\s\S]*?)\s*-->/i);
+            if (yzojMatch) {
+              samples[si].hint = yzojMatch[1].trim();
+              // YZOJ 的 yzoj-md-source 内容是 base64 编码的，使用 TextDecoder 正确解码 UTF-8 中文
+              try { var bin=atob(samples[si].hint); var bytes=new Uint8Array(bin.length); for(var bi=0;bi<bin.length;bi++)bytes[bi]=bin.charCodeAt(bi); samples[si].hint=new TextDecoder('utf-8').decode(bytes); } catch(e){}
+            } else {
+              samples[si].hint = samples[si].hint.replace(/<!--[\s\S]*?-->/g, '').trim();
+            }
+          }
+        }
+      }
+    }
+  } catch(e) {}
+  
+  var tagOptionsHtml = '';
+  for (var tagName in tagMap) {
+    if (tagMap.hasOwnProperty(tagName)) {
+      var tagId = tagMap[tagName];
+      var isSelected = tags.indexOf(tagId) >= 0 ? ' sel' : '';
+      tagOptionsHtml += '<div class="tag-opt' + isSelected + '" data-id="' + esc(tagId) + '" onclick="toggleTag(this)">' + esc(tagName) + '</div>';
+    }
+  }
+  
+  // 单位转换：时间限制显示毫秒，内存限制自动选择单位
+  var tlNum = parseInt(fields.timelimit) || 1000;
+  var mlNum = parseInt(fields.memorylimit) || 262144;
+  var mlDisplay = mlNum;
+  var mlUnit = 'KB';
+  if (mlNum >= 1048576) { mlDisplay = mlNum / 1048576; mlUnit = 'GB'; }
+  else if (mlNum >= 1024) { mlDisplay = mlNum / 1024; mlUnit = 'MB'; }
+  
+  var tabId = 'tab-edit-' + problemId;
+  
+  // 构建完整的编辑页面HTML
+  return wrapWithMathJax('编辑题目 P' + problemId,
+    '<style>' +
+    '*{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:0;color:#333;font-size:13px;margin:0;display:flex;flex-direction:column;height:100vh;overflow:hidden}' +
+    '.tab-bar{display:flex;background:#fff;border-bottom:1px solid #d0d7de;flex-shrink:0;padding:0 12px}' +
+    '.tab{flex-shrink:0;padding:10px 18px;cursor:pointer;font-size:13px;font-weight:500;color:#57606a;border-bottom:2px solid transparent;transition:all .15s;user-select:none}' +
+    '.tab:hover{color:#007acc;background:#f6f8fa}' +
+    '.tab.active{color:#007acc;border-bottom-color:#007acc}' +
+    '.tab-content{flex:1;overflow-y:auto;padding:16px;display:none}' +
+    '.tab-content.active{display:block}' +
+    'h2{font-size:16px;color:#007acc;margin:0 0 12px}' +
+    '.form-group{margin-bottom:12px}' +
+    'label{display:block;font-weight:600;font-size:12px;color:#555;margin-bottom:3px}' +
+    'input,textarea,select{width:100%;padding:6px 8px;border:1px solid #d0d7de;border-radius:5px;font-size:12px;color:#333;background:#fff}' +
+    'input:focus,textarea:focus,select:focus{border-color:#007acc;outline:none;box-shadow:0 0 0 2px rgba(0,122,204,0.12)}' +
+    'input[type=checkbox]{width:auto;margin-right:4px}' +
+    'textarea{resize:vertical;font-family:Consolas,monospace;font-size:12px}' +
+    '.row{display:flex;gap:10px}' +
+    '.row .form-group{flex:1}' +
+    '.row-3{display:flex;gap:8px}' +
+    '.row-3 .form-group{flex:1}' +
+    '.unit-group{display:flex}' +
+    '.unit-group input{flex:1;border-radius:5px 0 0 5px}' +
+    '.unit-group select{width:auto;border-radius:0 5px 5px 0;border-left:none;padding:6px 8px}' +
+    '.action-bar{flex-shrink:0;text-align:center;padding:10px;background:#fff;border-top:1px solid #d0d7de}' +
+    '.action-bar button{padding:7px 24px;border-radius:6px;cursor:pointer;font-size:13px;margin:0 5px}' +
+    '.btn-primary{background:#007acc;color:#fff;border:none}' +
+    '.btn-primary:hover{background:#005999}' +
+    '.btn-primary:disabled{background:#c0d8e8;cursor:not-allowed}' +
+    '.btn-default{background:#fff;color:#555;border:1px solid #d0d7de}' +
+    '.btn-default:hover{background:#f6f8fa}' +
+    '.btn-danger{background:#cf222e;color:#fff;border:none}' +
+    '.card{background:#fff;border-radius:8px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}' +
+    '.tag-container{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;max-height:120px;overflow-y:auto;border:1px solid #eee;border-radius:5px;padding:6px}' +
+    '.tag-opt{padding:3px 8px;border-radius:10px;font-size:11px;background:#f0f0f0;color:#555;cursor:pointer;user-select:none}' +
+    '.tag-opt:hover{background:#e6f0fa}' +
+    '.tag-opt.sel{background:#007acc;color:#fff}' +
+    '.tag-opt.sel::after{content:" \\2713"}' +
+    '.tag-search{margin-bottom:6px}' +
+    '.tag-search input{font-size:12px}' +
+    '.author-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}' +
+    '.author-tag{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#e6f0fa;color:#007acc;border-radius:12px;font-size:12px}' +
+    '.author-tag .del{cursor:pointer;color:#cf222e;font-weight:700;margin-left:2px}' +
+    '.author-tag .del:hover{color:#a0111f}' +
+    '.add-author{display:flex;gap:4px;margin-top:4px}' +
+    '.add-author input{flex:1;padding:4px 6px;font-size:12px}' +
+    '.add-author button{padding:4px 10px;border:1px solid #007acc;border-radius:4px;background:#fff;color:#007acc;cursor:pointer;font-size:12px}' +
+    '.add-author button:hover{background:#007acc;color:#fff}' +
+    '.sample-item{background:#f6f8fa;border-radius:6px;padding:8px;margin:6px 0}' +
+    '.sample-item textarea{font-family:Consolas,monospace;font-size:11px;min-height:40px}' +
+    '.sample-item .row{gap:6px}' +
+    '.hint{font-size:10px;color:#888;margin-top:2px}' +
+    '.help-section{padding:8px 0}' +
+    '.help-section h3{font-size:14px;color:#007acc;margin:16px 0 8px}' +
+    '.help-section pre{background:#f6f8fa;padding:8px;border-radius:4px;font-size:11px;overflow-x:auto}' +
+    '.help-section code{background:#f0f0f0;padding:1px 4px;border-radius:3px;font-size:11px}' +
+    '.config-preview{background:#1f2328;color:#e6edf3;padding:10px;border-radius:6px;font-family:Consolas,monospace;font-size:11px;white-space:pre;overflow-x:auto;max-height:200px;overflow-y:auto}' +
+    '.upload-area{border:2px dashed #d0d7de;border-radius:8px;padding:30px;text-align:center;cursor:pointer;transition:all .2s}' +
+    '.upload-area:hover{border-color:#007acc;background:#f0f7ff}' +
+    '.upload-area .icon{font-size:32px;color:#007acc}' +
+    '#resultMsg{text-align:center;margin-top:10px;font-size:13px}' +
+    '.md-editor-wrap{flex:1;min-height:0;border-radius:8px;overflow:hidden;background:#fff;border:1px solid #dbeaff}' +
+    '.md-editor-wrap .CodeMirror{height:100% !important}' +
+    '.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500}' +
+    '.badge-blue{background:#ddf4ff;color:#0969da}' +
+    'table{width:100%;border-collapse:collapse;font-size:13px}' +
+    'th{background:#f6f8fa;padding:8px 10px;text-align:left;font-weight:600;color:#555;border-bottom:2px solid #d0d7de;white-space:nowrap}' +
+    'td{padding:6px 10px;border-bottom:1px solid #eee;vertical-align:middle}' +
+    'tr:hover td{background:#f8fafb}' +
+    '.summary-row td{background:#f6f8fa;font-weight:600;border-top:2px solid #d0d7de}' +
+    '.summary-label{text-align:right;color:#555;padding-right:20px}' +
+    '</style>' +
+    // Tab Bar
+    '<div class="tab-bar">' +
+    '<div class="tab active" data-tab="edit" onclick="switchTab(\'edit\')">编辑题目</div>' +
+    '<div class="tab" data-tab="data" onclick="switchTab(\'data\')">数据配置</div>' +
+    '<div class="tab" data-tab="help" onclick="switchTab(\'help\')">帮助</div>' +
+    '</div>' +
+    // Tab: 编辑题目
+    '<div class="tab-content active" id="tab-edit">' +
+    '<h2>编辑题目 P' + esc(problemId) + '</h2>' +
+    '<div class="card">' +
+    '<div class="form-group"><label>题目名称</label><input type="text" id="pname" value="' + esc(fields.pname) + '"></div>' +
+    '<div class="row-3">' +
+    '<div class="form-group"><label>难度</label><input type="text" id="lev" value="' + esc(fields.lev) + '"></div>' +
+    '<div class="form-group"><label>题目权限</label><input type="text" id="showmark" value="' + esc(fields.showmark) + '"></div>' +
+    '<div class="form-group"><label><input type="checkbox" id="judgemark"' + (fields.judgemark ? ' checked' : '') + '> 是否评测</label></div>' +
+    '</div>' +
+    '</div>' +
+    '<div class="card">' +
+    '<div class="row">' +
+    '<div class="form-group"><label>时间限制</label><div class="unit-group"><input type="number" id="timelimit" value="' + tlNum + '"><select id="tlUnit"><option value="ms" selected>毫秒</option><option value="s">秒</option></select></div></div>' +
+    '<div class="form-group"><label>内存限制</label><div class="unit-group"><input type="number" id="memorylimit" value="' + mlDisplay + '" step="0.5"><select id="mlUnit"><option value="KB"' + (mlUnit==='KB'?' selected':'') + '>KB</option><option value="MB"' + (mlUnit==='MB'?' selected':'') + '>MB</option><option value="GB"' + (mlUnit==='GB'?' selected':'') + '>GB</option></select></div></div>' +
+    '</div>' +
+    '<div class="hint">提交时时间限制自动转为毫秒，内存限制自动转为KB</div>' +
+    '</div>' +
+    '<div class="card">' +
+    '<div class="row">' +
+    '<div class="form-group"><label>C/C++ 编译选项</label><input type="text" id="cflags" value="' + esc(fields.cflags) + '"></div>' +
+    '<div class="form-group"><label>Pascal 编译选项</label><input type="text" id="pasflags" value="' + esc(fields.pasflags) + '"></div>' +
+    '</div>' +
+    '</div>' +
+    '<div class="card">' +
+    '<div class="form-group"><label>出题人</label>' +
+    '<div id="authorContainer" class="author-row">' +
+    authors.map(function(a){return '<span class="author-tag" data-name="' + esc(a) + '">' + esc(a) + '<span class="del" onclick="removeAuthor(this)">×</span></span>';}).join('') +
+    '</div>' +
+    '<div class="add-author"><input type="text" id="authorInput" placeholder="输入出题人用户名"><button onclick="addAuthor()">＋ 添加</button></div>' +
+    '</div>' +
+    '</div>' +
+    '<div class="card">' +
+    '<div class="form-group"><label>标签</label><input type="text" id="tagSearch" class="tag-search" placeholder="搜索标签..." oninput="filterTags(this.value)">' +
+    '<div id="tagContainer" class="tag-container">' + tagOptionsHtml + '</div></div>' +
+    '</div>' +
+    '<div class="card">' +
+    '<div class="form-group"><label>题目描述（支持 Markdown + LaTeX）</label><div class="md-editor-wrap" style="height:320px"><div id="mdEditorDesc"></div></div></div>' +
+    '<div class="form-group"><label>输入格式（支持 Markdown + LaTeX）</label><div class="md-editor-wrap" style="height:200px"><div id="mdEditorInput"></div></div></div>' +
+    '<div class="form-group"><label>输出格式（支持 Markdown + LaTeX）</label><div class="md-editor-wrap" style="height:200px"><div id="mdEditorOutput"></div></div></div>' +
+    '<div class="form-group"><label>提示（支持 Markdown + LaTeX）</label><div class="md-editor-wrap" style="height:200px"><div id="mdEditorHint"></div></div></div>' +
+    '<div class="form-group"><label>隐藏信息（比赛中不可见）</label><div class="md-editor-wrap" style="height:150px"><div id="mdEditorHidden"></div></div></div>' +
+    '</div>' +
+    '<div class="card">' +
+    '<div class="form-group"><label>样例数据</label><div id="samplesContainer">' +
+    (samples && samples.length > 0 ? samples.map(function(s, i) {
+      return '<div class="sample-item" data-idx="' + i + '"><div class="row"><div class="form-group"><label>输入 #' + (i+1) + '</label><textarea class="sample-in" rows="2">' + esc(s.in || s.input || '') + '</textarea></div><div class="form-group"><label>输出 #' + (i+1) + '</label><textarea class="sample-out" rows="2">' + esc(s.out || s.output || '') + '</textarea></div></div><div class="form-group"><label>样例说明 #' + (i+1) + '（支持 Markdown + LaTeX）</label><input type="hidden" class="sample-hint-val" value="' + esc(s.hint || '') + '"><div class="md-editor-wrap" style="height:120px"><div id="sampleHint_' + i + '"></div></div></div><button class="btn-default" style="font-size:11px;padding:2px 8px;margin-top:4px" onclick="this.closest(\'.sample-item\').remove()">删除</button></div>';
+    }).join('') : '<div style="text-align:center;padding:10px;color:#888;font-size:12px" id="noSample">暂无样例数据</div>') +
+    '</div><button class="btn-default" style="font-size:12px;padding:4px 12px;margin-top:6px" onclick="addSample()">＋ 添加样例</button></div>' +
+    '</div>' +
+    '</div>' +
+    // Tab: 数据配置
+    '<div class="tab-content" id="tab-data">' +
+    '<h2>数据配置</h2>' +
+    '<div class="card">' +
+    '<div class="upload-area" id="uploadArea">' +
+    '<div class="icon">📦</div>' +
+    '<div style="font-size:14px;font-weight:600;margin-top:8px">点击选择 ZIP 数据文件</div>' +
+    '<div style="font-size:11px;color:#888;margin-top:4px">支持上传包含测试数据的 ZIP 压缩包</div>' +
+    '</div>' +
+    '<input type="file" id="fileInput" accept=".zip" style="display:none">' +
+    '<div id="fileInfo" style="display:none;margin-top:8px;padding:8px;background:#f0f7ff;border-radius:6px;font-size:12px"></div>' +
+    '</div>' +
+    '<div class="card" id="testPointsCard" style="display:none">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">' +
+    '<div style="font-size:15px;font-weight:600">测试点列表 <span class="badge badge-blue" id="testPointCount"></span></div>' +
+    '<label style="font-size:12px;font-weight:400;white-space:nowrap;user-select:none"><input type="checkbox" id="useSubtask"> 启用子任务</label>' +
+    '</div>' +
+    '<div style="overflow-x:auto">' +
+    '<table><thead><tr id="testPointsHeader"></tr></thead><tbody id="testPointsBody"></tbody></table>' +
+    '</div>' +
+    '<div style="margin-top:10px;padding:10px;background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px">' +
+    '<div style="font-size:12px;font-weight:600;margin-bottom:6px">批量编辑</div>' +
+    '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
+    '<input id="batchRange" placeholder="#1-#10" style="width:90px;padding:4px 8px;border:1px solid #d0d7de;border-radius:4px;font-size:12px">' +
+    '<select id="batchField" style="padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px;background:#fff">' +
+    '<option value="time">时限(ms)</option>' +
+    '<option value="score">分值</option>' +
+    '<option value="subtask">子任务</option>' +
+    '<option value="hack">Hack</option>' +
+    '<option value="depends">依赖</option>' +
+    '</select>' +
+    '<input id="batchValue" placeholder="值" style="width:80px;padding:4px 8px;border:1px solid #d0d7de;border-radius:4px;font-size:12px">' +
+    '<button class="btn-default" style="font-size:12px;padding:4px 10px" id="btnBatchApply">应用</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:#888;margin-top:4px">范围: #1-#10(区间), #1,#3,#5(列举), all(全部) | Hack填true/false</div>' +
+    '</div>' +
+    '</div>' +
+    '<div class="card" id="subtaskCard" style="display:none">' +
+    '<div style="font-size:15px;font-weight:600;margin-bottom:10px">子任务配置</div>' +
+    '<div id="subtaskList"></div>' +
+    '<button class="btn-default" style="font-size:12px;padding:4px 12px;margin-top:6px" onclick="addSubtask()">＋ 添加子任务</button>' +
+    '<div style="font-size:11px;color:#888;margin-top:6px">计分方式: sum(求和) / max(最大值) / min(最小值) / average(平均分)</div>' +
+    '</div>' +
+    '<div class="card" id="configCard" style="display:none">' +
+    '<div class="form-group"><label>输入文件后缀</label><input type="text" id="inputExt" value="in"></div>' +
+    '<div class="form-group"><label>输出文件后缀</label><input type="text" id="outputExt" value="out"></div>' +
+    '<div class="form-group"><label>配置文件预览</label><pre class="config-preview" id="configPreview">上传 ZIP 后生成配置</pre></div>' +
+    '<button class="btn-default" style="font-size:12px;padding:4px 12px" onclick="generateConfig()">生成配置</button>' +
+    '</div>' +
+    '<div class="card">' +
+    '<div class="card-title">Special Judge 源代码（可选）</div>' +
+    '<div class="upload-area" id="spjUploadArea" style="padding:20px;text-align:center;border:2px dashed #d0d7de;border-radius:8px;cursor:pointer">' +
+    '<div style="font-size:13px;font-weight:600">点击选择 SPJ 源代码文件</div>' +
+    '<div style="font-size:11px;color:#888;margin-top:4px">支持 .cpp / .pas / .c 等源代码格式</div>' +
+    '</div>' +
+    '<input type="file" id="spjFileInput" accept=".cpp,.c,.pas,.java,.py" style="display:none">' +
+    '<div id="spjFileInfo" style="display:none;margin-top:6px;padding:6px 10px;background:#f0f7ff;border-radius:6px;font-size:12px"></div>' +
+    '</div>' +
+    '</div>' +
+    // Tab: 帮助
+    '<div class="tab-content" id="tab-help">' +
+    '<h2>数据打包帮助</h2>' +
+    '<div class="card help-section">' +
+    '<h3>数据文件命名规则</h3>' +
+    '<p>测试数据文件应命名为 <code>前缀1.输入后缀</code> 和 <code>前缀1.输出后缀</code>。</p>' +
+    '<p>例如：<code>test1.in</code>、<code>test1.out</code>、<code>test2.in</code>、<code>test2.out</code> ...</p>' +
+    '<h3>config.ini 格式（传统模式）</h3>' +
+    '<pre>3&#10;test1.in|test1.out|1|30&#10;test2.in|test2.out|1|30&#10;test3.in|test3.out|1|40</pre>' +
+    '<p>第一行为测试点个数，每行格式：<code>输入文件|输出文件|时间限制(秒)|分值</code></p>' +
+    '<h3>config.json 格式（子任务模式）</h3>' +
+    '<pre>{"cases":[{"in":"chicken1.in","out":"chicken1.out","time":1,"score":20}, ...],&#10;"score_map":[{"type":"min","cases":[1,2,3],"weight":20}, ...]}</pre>' +
+    '<h3>extra_files.ini（交互题）</h3>' +
+    '<p>如果题目需要额外文件（如交互题），创建一个 <code>extra_files.ini</code>，每行一个文件名。</p>' +
+    '<h3>Special Judge</h3>' +
+    '<p>如需自定义评测，勾选"使用 Special Judge"并上传 SPJ 程序。</p>' +
+    '<h3>提交说明</h3>' +
+    '<p>提交时，系统会自动将 config 文件与测试数据一起打包上传至 YZOJ，同时更新题面信息。</p>' +
+    '</div>' +
+    '</div>' +
+    // Action Bar
+    '<div class="action-bar">' +
+    '<button class="btn-primary" id="btnSubmit">提交</button>' +
+    '<button class="btn-default" id="btnGenerateConfig" style="display:none">生成配置</button>' +
+    '<button class="btn-default" id="btnCancel">取消</button>' +
+    '</div>' +
+    '<div id="resultMsg"></div>' +
+    '<input type="hidden" id="data-authors" value="' + esc(authors.join('|')) + '">' +
+    '<input type="hidden" id="data-desc" value="' + esc(fields.description) + '">' +
+    '<input type="hidden" id="data-input" value="' + esc(fields.inputformat) + '">' +
+    '<input type="hidden" id="data-output" value="' + esc(fields.outputformat) + '">' +
+    '<input type="hidden" id="data-hint" value="' + esc(fields.hint) + '">' +
+    '<input type="hidden" id="data-hidden" value="' + esc(fields.hiddenhint) + '">' +
+    '<input type="hidden" id="data-problemId" value="' + esc(problemId) + '">' +
+    '<input type="hidden" id="spjFileData" value="">' +
+    '<input type="hidden" id="spjFileName" value="">' +
+    // Data injection via JSON.stringify (avoids triple-nested escaping issues)
+    '<script>var _pageData=' + JSON.stringify({tags: tags}) + ';</script>' +
+    '<script>' +
+    'var v=window.vscodeApi||acquireVsCodeApi();' +
+    'var selectedTags=_pageData.tags;' +
+    'var authors=[];' +
+    'var testPoints=[];' +
+    'var subtasks=[{id:0,type:"min",weight:100}];' +
+    'var nextSubtaskId=1;' +
+    'var currentFileName="";' +
+    'var mdEditors={};' +
+    'var _dataTabLoaded=false;' +
+    'var _configDirty=false;' +
+    'var _spjDirty=false;' +
+    'function switchTab(t) {' +
+    '  var tabs = document.querySelectorAll(".tab");' +
+    '  var contents = document.querySelectorAll(".tab-content");' +
+    '  for(var i=0;i<tabs.length;i++) tabs[i].classList.remove("active");' +
+    '  for(var i=0;i<contents.length;i++) contents[i].classList.remove("active");' +
+    '  document.getElementById("tab-"+t).classList.add("active");' +
+    '  var tabEls = document.querySelectorAll(".tab");' +
+    '  for(var i=0;i<tabEls.length;i++) {' +
+    '    if(tabEls[i].getAttribute("data-tab") === t) tabEls[i].classList.add("active");' +
+    '  }' +
+    '  if(t==="data"){' +
+    '    _dataTabLoaded=true;' +
+    '    v.postMessage({command:"fetchDataConfig",problemId:document.getElementById("data-problemId").value});' +
+    '  }' +
+    '}' +
+    'function filterTags(q) {' +
+    '  var opts = document.querySelectorAll(".tag-opt");' +
+    '  for(var i=0;i<opts.length;i++) {' +
+    '    opts[i].style.display = opts[i].textContent.indexOf(q) >= 0 ? "" : "none";' +
+    '  }' +
+    '}' +
+    'function toggleTag(el) {' +
+    '  el.classList.toggle("sel");' +
+    '  var idx = selectedTags.indexOf(el.dataset.id);' +
+    '  if(idx >= 0) selectedTags.splice(idx, 1);' +
+    '  else selectedTags.push(el.dataset.id);' +
+    '}' +
+    'function addAuthor() {' +
+    '  var inp = document.getElementById("authorInput");' +
+    '  var name = inp.value.trim();' +
+    '  if(!name) return;' +
+    '  if(name.indexOf("|") >= 0) {' +
+    '    var names = name.split("|");' +
+    '    for(var i=0;i<names.length;i++) {' +
+    '      var n = names[i].trim();' +
+    '      if(n) addAuthorByName(n);' +
+    '    }' +
+    '    inp.value = "";' +
+    '    return;' +
+    '  }' +
+    '  addAuthorByName(name);' +
+    '  inp.value = "";' +
+    '}' +
+    'function addAuthorByName(name) {' +
+    '  var c = document.getElementById("authorContainer");' +
+    '  var existing = c.querySelectorAll(".author-tag");' +
+    '  for(var i=0;i<existing.length;i++) {' +
+    '    if(existing[i].getAttribute("data-name") === name) return;' +
+    '  }' +
+    '  var el = document.createElement("span");' +
+    '  el.className = "author-tag";' +
+    '  el.setAttribute("data-name", name);' +
+    '  var delBtn = document.createElement("span");' +
+    '  delBtn.className = "del";' +
+    '  delBtn.textContent = "×";' +
+    '  delBtn.onclick = function() { removeAuthor(this); };' +
+    '  el.textContent = name;' +
+    '  el.appendChild(delBtn);' +
+    '  c.appendChild(el);' +
+    '}' +
+    'function removeAuthor(el) {' +
+    '  el.parentElement.remove();' +
+    '}' +
+    'function addSample() {' +
+    '  var c = document.getElementById("samplesContainer");' +
+    '  var no = document.getElementById("noSample");' +
+    '  if(no) no.remove();' +
+    '  var idx = c.querySelectorAll(".sample-item").length;' +
+    '  var hintId = "sampleHint_" + idx;' +
+    '  var div = document.createElement("div");' +
+    '  div.className = "sample-item";' +
+    '  div.setAttribute("data-idx", idx);' +
+    '  var row = document.createElement("div");' +
+    '  row.className = "row";' +
+    '  var inGroup = document.createElement("div");' +
+    '  inGroup.className = "form-group";' +
+    '  var inLabel = document.createElement("label");' +
+    '  inLabel.textContent = "输入 #" + (idx + 1);' +
+    '  var inTextarea = document.createElement("textarea");' +
+    '  inTextarea.className = "sample-in";' +
+    '  inTextarea.rows = 2;' +
+    '  inGroup.appendChild(inLabel);' +
+    '  inGroup.appendChild(inTextarea);' +
+    '  var outGroup = document.createElement("div");' +
+    '  outGroup.className = "form-group";' +
+    '  var outLabel = document.createElement("label");' +
+    '  outLabel.textContent = "输出 #" + (idx + 1);' +
+    '  var outTextarea = document.createElement("textarea");' +
+    '  outTextarea.className = "sample-out";' +
+    '  outTextarea.rows = 2;' +
+    '  outGroup.appendChild(outLabel);' +
+    '  outGroup.appendChild(outTextarea);' +
+    '  row.appendChild(inGroup);' +
+    '  row.appendChild(outGroup);' +
+    '  var hintGroup = document.createElement("div");' +
+    '  hintGroup.className = "form-group";' +
+    '  var hintLabel = document.createElement("label");' +
+    '  hintLabel.textContent = "样例说明 #" + (idx + 1) + "（支持 Markdown + LaTeX）";' +
+    '  var hintWrap = document.createElement("div");' +
+    '  hintWrap.className = "md-editor-wrap";' +
+    '  hintWrap.style.height = "120px";' +
+    '  var hintDiv = document.createElement("div");' +
+    '  hintDiv.id = hintId;' +
+    '  hintWrap.appendChild(hintDiv);' +
+    '  hintGroup.appendChild(hintLabel);' +
+    '  hintGroup.appendChild(hintWrap);' +
+    '  var delBtn = document.createElement("button");' +
+    '  delBtn.className = "btn-default";' +
+    '  delBtn.style.fontSize = "11px";' +
+    '  delBtn.style.padding = "2px 8px";' +
+    '  delBtn.style.marginTop = "4px";' +
+    '  delBtn.textContent = "删除";' +
+    '  delBtn.onclick = function() { div.remove(); };' +
+    '  div.appendChild(row);' +
+    '  div.appendChild(hintGroup);' +
+    '  div.appendChild(delBtn);' +
+    '  c.appendChild(div);' +
+    '  try{' +
+    '    mdEditors["sample_" + idx] = new MarkdownPalettes("#" + hintId);' +
+    '  }catch(e){console.error("sample hint editor init failed:",e);}' +
+    '}' +
+    'function autoDistributeScore(){' +
+    'var n=testPoints.length;if(n===0)return;' +
+    'var base=Math.floor(100/n),remain=100-base*n;' +
+    'for(var i=0;i<n;i++)testPoints[i].score=base+(i===n-1?remain:0);' +
+    '}' +
+    'function _tpOnChange(idx,field,val){' +
+    '_configDirty=true;' +
+    'if(field==="time"){testPoints[idx].time=parseInt(val)||1000;testPoints[idx].time/=1000}' +
+    'else if(field==="score"){testPoints[idx].score=parseFloat(val)||0}' +
+    'else if(field==="subtask"){testPoints[idx].subtask=parseInt(val);renderTestPoints()}' +
+    'else if(field==="hack"){testPoints[idx].hack=!!val}' +
+    'else if(field==="depends"){testPoints[idx].depends=val?val.split(",").map(function(x){return parseInt(x.trim())}).filter(function(x){return !isNaN(x)}):[]}' +
+    'updateConfigPreview()' +
+    '}' +
+    'function _stOnChange(idx,field,val){' +
+    '_configDirty=true;' +
+    'var st=subtasks[idx];' +
+    'if(field==="type"){st.type=val}' +
+    'else if(field==="weight"){st.weight=parseFloat(val)||0}' +
+    'updateConfigPreview();' +
+    'renderTestPoints()' +
+    '}' +
+    'function _delSubtask(id){' +
+    'if(subtasks.length<=1)return;' +
+    'var idx=-1;for(var i=0;i<subtasks.length;i++){if(subtasks[i].id===id){idx=i;break}}' +
+    'if(idx<0)return;subtasks.splice(idx,1);_configDirty=true;' +
+    'for(var i=0;i<testPoints.length;i++){if(testPoints[i].subtask===id)testPoints[i].subtask=subtasks[0].id}' +
+    'renderSubtasks();renderTestPoints()' +
+    '}' +
+    'function _calcSubtaskTotal(){' +
+    'var t=0;' +
+    'for(var si=0;si<subtasks.length;si++){' +
+    'var st=subtasks[si];var sc=[];' +
+    'for(var pi=0;pi<testPoints.length;pi++){if(testPoints[pi].subtask===st.id)sc.push(testPoints[pi].score)}' +
+    'if(sc.length===0)continue;' +
+    'if(st.type==="sum"){var s=0;for(var ki=0;ki<sc.length;ki++)s+=sc[ki];t+=s*st.weight}' +
+    'else if(st.type==="min"){var s=sc[0];for(var ki=1;ki<sc.length;ki++)if(sc[ki]<s)s=sc[ki];t+=s*st.weight}' +
+    'else if(st.type==="max"){var s=sc[0];for(var ki=1;ki<sc.length;ki++)if(sc[ki]>s)s=sc[ki];t+=s*st.weight}' +
+    'else if(st.type==="average"){var s=0;for(var ki=0;ki<sc.length;ki++)s+=sc[ki];t+=s/sc.length*st.weight}' +
+    '}' +
+    'return t' +
+    '}' +
+    'function renderTestPoints(){' +
+    'var us=document.getElementById("useSubtask").checked;' +
+    'var header=document.getElementById("testPointsHeader");header.innerHTML="";' +
+    'var ths=us?["#","输入文件","输出文件","时间限制(ms)","子任务编号","分值","Hack","测试点依赖"]:["#","输入文件","输出文件","时间限制(ms)","分值"];' +
+    'for(var hi=0;hi<ths.length;hi++){var th=document.createElement("th");th.textContent=ths[hi];header.appendChild(th)}' +
+    'var tbody=document.getElementById("testPointsBody");' +
+    'var html="",total=0;' +
+    'for(var i=0;i<testPoints.length;i++){' +
+    'var tp=testPoints[i];total+=tp.score;' +
+    'var ms=Math.round(tp.time*1000);' +
+    'html+="<tr data-idx=\\""+i+"\\">"' +
+    '+"<td style=\\"font-weight:600;color:#0969da;text-align:center;font-size:12px\\">"+(i+1)+"</td>"' +
+    '+"<td style=\\"font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\\" title=\\""+tp.inFile+"\\">"+tp.inFile+"</td>"' +
+    '+"<td style=\\"font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\\" title=\\""+tp.outFile+"\\">"+tp.outFile+"</td>"' +
+    '+"<td><input class=\\"tp-editor tp-time\\" data-idx=\\""+i+"\\" data-field=\\"time\\" style=\\"width:65px;padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px\\" type=\\"number\\" min=\\"1\\" step=\\"1\\" value=\\""+ms+"\\">ms</td>";' +
+    'if(us){' +
+    'var opts="";for(var s=0;s<subtasks.length;s++)opts+="<option value=\\""+subtasks[s].id+"\\""+(subtasks[s].id===tp.subtask?" selected":"")+">#"+subtasks[s].id+"</option>";' +
+    'html+="<td><select class=\\"tp-editor\\" data-idx=\\""+i+"\\" data-field=\\"subtask\\" style=\\"width:70px;padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px;background:#fff\\">"+opts+"</select></td>";' +
+    '}' +
+    'html+="<td><input class=\\"tp-editor tp-score\\" data-idx=\\""+i+"\\" data-field=\\"score\\" style=\\"width:55px;padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px\\" type=\\"number\\" min=\\"0\\" step=\\"0.5\\" value=\\""+tp.score+"\\"></td>";' +
+    'if(us){' +
+    'html+="<td style=\\"text-align:center\\"><input class=\\"tp-editor\\" data-idx=\\""+i+"\\" data-field=\\"hack\\" type=\\"checkbox\\" style=\\"cursor:pointer\\""+(tp.hack?" checked":"")+"></td>";' +
+    '}' +
+    'if(us){' +
+    'var depStr=(tp.depends&&tp.depends.length>0)?tp.depends.join(","):"";' +
+    'html+="<td><input class=\\"tp-editor\\" data-idx=\\""+i+"\\" data-field=\\"depends\\" style=\\"width:65px;padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px\\" type=\\"text\\" value=\\""+depStr+"\\" placeholder=\\"1,2,3\\"></td>";' +
+    '}' +
+    'html+="</tr>";' +
+    '}' +
+    'if(us)total=_calcSubtaskTotal();' +
+    'var colSpan=us?7:4;' +
+    'html+="<tr class=\\"summary-row\\"><td colspan=\\""+colSpan+"\\" class=\\"summary-label\\">总分</td><td><strong style=\\"color:"+(Math.abs(total-100)<0.01?"#2ea043":"#cf222e")+"\\">"+total+"</strong></td></tr>";' +
+    'tbody.innerHTML=html;' +
+    'document.getElementById("testPointCount").textContent=testPoints.length+"个";' +
+    'updateConfigPreview();' +
+    '}' +
+    'function renderSubtasks(){' +
+    'var container=document.getElementById("subtaskList");' +
+    'var h="";var tlMap={sum:"求和",min:"最小值",max:"最大值",average:"平均分"};' +
+    'for(var i=0;i<subtasks.length;i++){' +
+    'var st=subtasks[i];var tl=tlMap[st.type]||st.type;' +
+    'var ca=[];for(var j=0;j<testPoints.length;j++){if(testPoints[j].subtask===st.id)ca.push(j+1)}' +
+    'var ch=ca.length===0?"<span style=\\"color:#999\\">无</span>":"#"+ca.join(",#");' +
+    'h+="<div class=\\"subtask-item\\" data-idx=\\""+i+"\\"><div style=\\"display:flex;justify-content:space-between;align-items:center\\">"' +
+    '+"<span style=\\"font-weight:600;font-size:13px\\">子任务#"+st.id+" ("+tl+")</span>"' +
+    '+"<button class=\\"btn-st-del\\" data-id=\\""+st.id+"\\" style=\\"font-size:11px;padding:2px 8px;background:#cf222e;color:#fff;border:none;border-radius:4px;cursor:pointer\\""+(subtasks.length<=1?" disabled style=\\"opacity:0.5;font-size:11px;padding:2px 8px;background:#cf222e;color:#fff;border:none;border-radius:4px;cursor:pointer\\"":"")+">\u5220\u9664</button></div>"' +
+    '+"<div style=\\"display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px\\">"' +
+    '+"<div><label>\u8BA1\u5206\u65B9\u5F0F</label><select class=\\"st-editor\\" data-idx=\\""+i+"\\" data-field=\\"type\\" style=\\"width:100%;padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px\\">"' +
+    '+"<option value=\\"sum\\""+(st.type==="sum"?" selected":"")+">sum(\u6C42\u548C)</option>"' +
+    '+"<option value=\\"min\\""+(st.type==="min"?" selected":"")+">min(\u6700\u5C0F\u503C)</option>"' +
+    '+"<option value=\\"max\\""+(st.type==="max"?" selected":"")+">max(\u6700\u5927\u503C)</option>"' +
+    '+"<option value=\\"average\\""+(st.type==="average"?" selected":"")+">average(\u5E73\u5747\u5206)</option>"' +
+    '+"</select></div>"' +
+    '+"<div><label>\u6743\u91CD(\u5206\u503C)</label><input class=\\"st-editor\\" data-idx=\\""+i+"\\" data-field=\\"weight\\" type=\\"number\\" min=\\"0\\" step=\\"0.5\\" value=\\""+st.weight+"\\" style=\\"width:100%;padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px\\"></div>"' +
+    '+"<div style=\\"grid-column:span 2\\"><label>\u5305\u542B\u6D4B\u8BD5\u70B9</label><div style=\\"padding:6px 8px;background:#f6f8fa;border:1px solid #d0d7de;border-radius:4px;font-size:12px;color:#555\\">"+ch+"</div></div>"' +
+    '+"</div></div>";' +
+    '}' +
+    'container.innerHTML=h;' +
+    'updateConfigPreview();' +
+    '}' +
+    'function generateConfig(){' +
+    'var c=[];for(var i=0;i<testPoints.length;i++){var tp=testPoints[i];var cas={in:tp.inFile,out:tp.outFile,time:tp.time,score:tp.score};' +
+    'if(tp.hack)cas.hack=true;' +
+    'if(tp.depends&&tp.depends.length>0)cas.depends=tp.depends;' +
+    'c.push(cas)}' +
+    'var cfg={cases:c};' +
+    'if(document.getElementById("useSubtask").checked){' +
+    'var sm=[];for(var i=0;i<subtasks.length;i++){var st=subtasks[i];var sc=[];for(var j=0;j<testPoints.length;j++){if(testPoints[j].subtask===st.id)sc.push(j+1)}' +
+    'if(sc.length>0){var e={type:st.type,cases:sc};if(st.weight)e.weight=st.weight;sm.push(e)}}' +
+    'if(sm.length>0)cfg.score_map=sm;}' +
+    'var totalScore=0;for(var i=0;i<cfg.cases.length;i++)totalScore+=cfg.cases[i].score;' +
+    'var preview=JSON.stringify(cfg,null,2);' +
+    'if(!document.getElementById("useSubtask").checked&&Math.abs(totalScore-100)>0.01)preview="\\u26a0\\ufe0f \\u5206\\u503c\\u68c0\\u67e5\\uff1a\\u6240\\u6709\\u6d4b\\u8bd5\\u70b9\\u5206\\u6570\\u4e4b\\u548c\\u4e3a "+totalScore+"\\uff0c\\u4e0d\\u7b49\\u4e8e 100\\uff0c\\u8bf7\\u8c03\\u6574\\uff01\\n\\n"+preview;' +
+    'document.getElementById("configPreview").textContent=preview;' +
+    '}' +
+    'function updateConfigPreview(){if(testPoints.length===0){document.getElementById("configPreview").textContent="暂无测试点";return}generateConfig()}' +
+    'function addSubtask(){_configDirty=true;subtasks.push({id:nextSubtaskId++,type:"min",weight:10});renderSubtasks();renderTestPoints()}' +
+    'document.getElementById("useSubtask").onchange=function(){_configDirty=true;renderTestPoints();if(this.checked){document.getElementById("subtaskCard").style.display="block";renderSubtasks()}else{document.getElementById("subtaskCard").style.display="none"}};' +
+    'function batchUpdateTestPoints(){' +
+    'var r=document.getElementById("batchRange").value.trim();' +
+    'var f=document.getElementById("batchField").value;' +
+    'var v=document.getElementById("batchValue").value.trim();' +
+    'if(!r){alert("请输入范围");return}' +
+    'if(!v){alert("请输入值");return}' +
+    'var idxs=[];' +
+    'if(r==="all"){for(var i=0;i<testPoints.length;i++)idxs.push(i)}' +
+    'else{' +
+    'var pts=r.replace(/#/g,"").split(",");' +
+    'for(var pi=0;pi<pts.length;pi++){' +
+    'var p=pts[pi].trim();' +
+    'if(p.indexOf("-")>=0){' +
+    'var rg=p.split("-");var s=parseInt(rg[0])-1;var e=parseInt(rg[1])-1;' +
+    'if(!isNaN(s)&&!isNaN(e)){if(s<0)s=0;if(e>=testPoints.length)e=testPoints.length-1;for(var ri=s;ri<=e;ri++)idxs.push(ri)}' +
+    '}else{' +
+    'var idx=parseInt(p)-1;if(!isNaN(idx)&&idx>=0&&idx<testPoints.length)idxs.push(idx)' +
+    '}' +
+    '}' +
+    '}' +
+    'if(idxs.length===0){alert("没有匹配的测试点");return}' +
+    'if(f==="time"){var nv=parseInt(v);if(isNaN(nv)||nv<=0){alert("时间必须为正整数(毫秒)");return}for(var bi=0;bi<idxs.length;bi++)testPoints[idxs[bi]].time=nv/1000}' +
+    'else if(f==="score"){var nv=parseFloat(v);if(isNaN(nv)||nv<0){alert("分值必须为非负数");return}for(var bi=0;bi<idxs.length;bi++)testPoints[idxs[bi]].score=nv}' +
+    'else if(f==="subtask"){var nv=parseInt(v);if(isNaN(nv)){alert("子任务编号必须为整数");return}for(var bi=0;bi<idxs.length;bi++)testPoints[idxs[bi]].subtask=nv}' +
+    'else if(f==="hack"){var nv=v==="true";for(var bi=0;bi<idxs.length;bi++)testPoints[idxs[bi]].hack=nv}' +
+    'else if(f==="depends"){var nv=v?v.split(",").map(function(x){return parseInt(x.trim())}).filter(function(x){return !isNaN(x)}):[];for(var bi=0;bi<idxs.length;bi++)testPoints[idxs[bi]].depends=nv}' +
+    '_configDirty=true;renderTestPoints();if(document.getElementById("useSubtask").checked)renderSubtasks();' +
+    'alert("已更新 "+idxs.length+" 个测试点")' +
+    '}' +
+    'document.getElementById("btnBatchApply").onclick=batchUpdateTestPoints;' +
+    'var fileInput=document.getElementById("fileInput");' +
+    'document.getElementById("uploadArea").onclick = function() { fileInput.click(); };' +
+    'document.getElementById("uploadArea").ondragover = function(e) { e.preventDefault(); this.style.borderColor="#007acc"; this.style.background="#f0f7ff"; };' +
+    'document.getElementById("uploadArea").ondragleave = function() { this.style.borderColor="#d0d7de"; this.style.background=""; };' +
+    'document.getElementById("uploadArea").ondrop = function(e) { e.preventDefault(); this.style.borderColor="#d0d7de"; this.style.background=""; if(e.dataTransfer.files.length) handleZipFile(e.dataTransfer.files[0]); };' +
+    'fileInput.onchange = function() { if(this.files.length) handleZipFile(this.files[0]); };' +
+    'function handleZipFile(file) {' +
+    '  console.log("[EditData] 选择ZIP文件:", file.name, "大小:", (file.size/1024).toFixed(1), "KB");' +
+    '  if(!file.name.toLowerCase().endsWith(".zip")) { alert("请选择ZIP文件"); return; }' +
+    '  var fi = document.getElementById("fileInfo");' +
+    '  fi.style.display = "block";' +
+    '  fi.textContent = "📄 "+file.name+" ("+(file.size/1024).toFixed(1)+" KB) 正在发送到扩展解析...";' +
+    '  fi.style.background = "#f0f7ff";' +
+    '  var reader = new FileReader();' +
+    '  reader.onload = function(evt) {' +
+    '    var arr = new Uint8Array(evt.target.result), bin = "";' +
+    '    for(var i=0;i<arr.byteLength;i++) bin += String.fromCharCode(arr[i]);' +
+    '    v.postMessage({command:"parseZip", data:btoa(bin), fileName:file.name});' +
+    '    console.log("[EditData] 已发送ZIP数据到扩展端进行解析, 大小:", (file.size/1024).toFixed(1), "KB");' +
+    '  };' +
+    '  reader.readAsArrayBuffer(file);' +
+    '}' +
+    'var spjFileInput=document.getElementById("spjFileInput");' +
+    'document.getElementById("spjUploadArea").onclick = function() { spjFileInput.click(); };' +
+    'spjFileInput.onchange = function() { if(this.files.length) {' +
+    '  _spjDirty=true;' +
+    '  var f = this.files[0];' +
+    '  var fi = document.getElementById("spjFileInfo");' +
+    '  fi.style.display = "block";' +
+    '  fi.textContent = "📄 " + f.name + " (" + (f.size/1024).toFixed(1) + " KB)";' +
+    '  var reader = new FileReader();' +
+    '  reader.onload = function(evt) {' +
+    '    var arr = new Uint8Array(evt.target.result), bin = "";' +
+    '    for(var i=0;i<arr.byteLength;i++) bin += String.fromCharCode(arr[i]);' +
+    '    document.getElementById("spjFileData").value = btoa(bin);' +
+    '    document.getElementById("spjFileName").value = f.name;' +
+    '  };' +
+    '  reader.readAsArrayBuffer(f);' +
+    '}};' +
+    'document.getElementById("btnSubmit").onclick = function() {' +
+    '  var btn = document.getElementById("btnSubmit");' +
+    '  btn.disabled = true;' +
+    '  btn.textContent = "提交中...";' +
+    '  var samples = [];' +
+    '  var sampleItems = document.querySelectorAll("#samplesContainer .sample-item");' +
+    '  for(var i=0;i<sampleItems.length;i++) {' +
+    '    var e = sampleItems[i];' +
+    '    var sIdx = e.getAttribute("data-idx");' +
+    '    var hintContent = "";' +
+    '    if(mdEditors["sample_" + sIdx]) hintContent = mdEditors["sample_" + sIdx].content;' +
+    '    samples.push({input:e.querySelector(".sample-in").value,output:e.querySelector(".sample-out").value,hint:hintContent});' +
+    '  }' +
+    '  var authorEls = document.querySelectorAll("#authorContainer .author-tag");' +
+    '  var authors = [];' +
+    '  for(var i=0;i<authorEls.length;i++) {' +
+    '    authors.push(authorEls[i].getAttribute("data-name"));' +
+    '  }' +
+    '  var tl = parseFloat(document.getElementById("timelimit").value) || 1000;' +
+    '  if(document.getElementById("tlUnit").value === "s") tl = tl * 1000;' +
+    '  var ml = parseFloat(document.getElementById("memorylimit").value) || 262144;' +
+    '  var mlUnit = document.getElementById("mlUnit").value;' +
+    '  if(mlUnit === "GB") ml = ml * 1048576;' +
+    '  else if(mlUnit === "MB") ml = ml * 1024;' +
+    '  v.postMessage({' +
+    '    command:"submitEditProblem",' +
+    '    problemId:document.getElementById("data-problemId").value,' +
+    '    pname:document.getElementById("pname").value.trim(),' +
+    '    prop_uname:authors.join("|"),' +
+    '    lev:document.getElementById("lev").value.trim(),' +
+    '    timelimit:String(Math.round(tl)),' +
+    '    memorylimit:String(Math.round(ml)),' +
+    '    showmark:document.getElementById("showmark").value.trim(),' +
+    '    judgemark:document.getElementById("judgemark").checked ? "on" : "",' +
+    '    cflags:document.getElementById("cflags").value.trim(),' +
+    '    pasflags:document.getElementById("pasflags").value.trim(),' +
+    '    description:(mdEditors.desc ? mdEditors.desc.content : document.getElementById("description") ? document.getElementById("description").value : ""),' +
+    '    format:"",' +
+    '    inputformat:(mdEditors.input ? mdEditors.input.content : document.getElementById("inputformat") ? document.getElementById("inputformat").value : ""),' +
+    '    outputformat:(mdEditors.output ? mdEditors.output.content : document.getElementById("outputformat") ? document.getElementById("outputformat").value : ""),' +
+    '    hint:(mdEditors.hint ? mdEditors.hint.content : document.getElementById("hint") ? document.getElementById("hint").value : ""),' +
+    '    hiddenhint:(mdEditors.hidden ? mdEditors.hidden.content : document.getElementById("hiddenhint") ? document.getElementById("hiddenhint").value : ""),' +
+    '    samples:JSON.stringify(samples),' +
+    '    config:document.getElementById("configPreview").textContent,' +
+    '    tags:selectedTags.join(","),' +
+    '    spjFileData:document.getElementById("spjFileData").value,' +
+    '    spjFileName:document.getElementById("spjFileName").value,' +
+    '    dataConfigDirty:_dataTabLoaded&&_configDirty,' +
+    '    spjDirty:_spjDirty' +
+    '  });' +
+    '};' +
+    'document.getElementById("btnCancel").onclick = function() {' +
+    '  v.postMessage({command:"cancelEditor"});' +
+    '};' +
+    'window.addEventListener("message",function(e) {' +
+    '  var d = e.data;' +
+    '  if(d.type === "parseResult") {' +
+    '    console.log("[EditData] 收到解析结果:", d.testPoints.length, "个测试点");' +
+    '    for(var ti=0;ti<d.testPoints.length;ti++) {' +
+    '      var tp=d.testPoints[ti];' +
+    '      if(tp.hack===undefined)tp.hack=false;' +
+    '      if(tp.depends===undefined)tp.depends=[];' +
+    '      console.log("  ["+(ti+1)+"] "+tp.inFile+" + "+tp.outFile);' +
+    '    }' +
+    '    testPoints=d.testPoints;' +
+    '    currentFileName=d.fileName;' +
+    '    autoDistributeScore();' +
+    '    renderTestPoints();' +
+    '    renderSubtasks();' +
+    '    var fi = document.getElementById("fileInfo");' +
+    '    fi.style.display = "block";' +
+    '    fi.style.background = "#dafbe1";' +
+    '    fi.innerHTML = "📄 " + currentFileName + " — 解析到 <strong>" + testPoints.length + "</strong> 个测试点";' +
+    '    var names = testPoints.map(function(tp,i){ return "["+(i+1)+"] "+tp.inFile+" → "+tp.outFile; }).join(", ");' +
+    '    fi.innerHTML += "<br><span style=\\"font-size:11px;color:#555\\">"+names+"</span>";' +
+    '    document.getElementById("testPointsCard").style.display = "block";' +
+    '    document.getElementById("configCard").style.display = "block";' +
+    '    if(document.getElementById("useSubtask").checked) document.getElementById("subtaskCard").style.display = "block";' +
+    '    updateConfigPreview();' +
+    '  }' +
+    '  if(d.type === "parseError") {' +
+    '    console.error("[EditData] 解析错误:", d.error);' +
+    '    var fi = document.getElementById("fileInfo");' +
+    '    fi.style.display = "block";' +
+    '    fi.style.background = "#ffebe9";' +
+    '    fi.textContent = "❌ 解析失败: " + d.error;' +
+    '  }' +
+    '  if(d.type === "dataConfig") {' +
+    '    console.log("[EditData] 收到现有 config:", d.config ? (d.config.substring(0,100)+"...") : "(null)");' +
+    '    if(d.config) {' +
+    '      document.getElementById("configPreview").textContent = d.config;' +
+    '      try {' +
+    '        var cfg = JSON.parse(d.config);' +
+    '        if(cfg.cases && cfg.cases.length > 0 && testPoints.length === 0) {' +
+    '          testPoints = cfg.cases.map(function(c,i){return{inFile:c.in||"",outFile:c.out||"",time:c.time||1,subtask:0,score:c.score||0,hack:false,depends:[]}});' +
+    '          if(cfg.score_map) {' +
+    '            subtasks = cfg.score_map.map(function(sm,i){return{id:i,type:sm.type||"min",weight:sm.weight||1}});' +
+    '            nextSubtaskId = subtasks.length;' +
+    '            for(var tpi=0;tpi<testPoints.length;tpi++){' +
+    '              for(var smi=0;smi<cfg.score_map.length;smi++){' +
+    '                var sm=cfg.score_map[smi];' +
+    '                if(sm.cases && sm.cases.indexOf(tpi+1)>=0){testPoints[tpi].subtask=subtasks[smi].id;break}' +
+    '              }' +
+    '            }' +
+    '          }' +
+    '          renderTestPoints();' +
+    '          renderSubtasks();' +
+    '          document.getElementById("fileInfo").style.display="block";' +
+    '          document.getElementById("fileInfo").innerHTML="📄 已加载服务器上的 "+testPoints.length+" 个测试点";' +
+    '          document.getElementById("testPointsCard").style.display="block";' +
+    '          document.getElementById("configCard").style.display="block";' +
+    '          if(cfg.score_map) { document.getElementById("useSubtask").checked=true; document.getElementById("subtaskCard").style.display="block"; renderTestPoints(); }' +
+    '        }' +
+    '      } catch(e) { console.warn("[EditData] 解析现有 config 到 UI 失败:", e); }' +
+    '    }' +
+    '  }' +
+    '  if(d.command === "submitResult") {' +
+    '    var btn = document.getElementById("btnSubmit");' +
+    '    if(btn) { btn.disabled = false; btn.textContent = "提交"; }' +
+    '    var msgEl = document.getElementById("resultMsg");' +
+    '    msgEl.textContent = d.message;' +
+    '    msgEl.style.color = d.success ? "#2ea043" : "#cf222e";' +
+    '  }' +
+    '});' +
+    'function initEditors() {' +
+    '  try{' +
+    '    mdEditors.desc = new MarkdownPalettes("#mdEditorDesc");' +
+    '    mdEditors.desc.content = document.getElementById("data-desc").value || "";' +
+    '  }catch(e){console.error("mdEditorDesc init failed:",e);}' +
+    '  try{' +
+    '    mdEditors.input = new MarkdownPalettes("#mdEditorInput");' +
+    '    mdEditors.input.content = document.getElementById("data-input").value || "";' +
+    '  }catch(e){console.error("mdEditorInput init failed:",e);}' +
+    '  try{' +
+    '    mdEditors.output = new MarkdownPalettes("#mdEditorOutput");' +
+    '    mdEditors.output.content = document.getElementById("data-output").value || "";' +
+    '  }catch(e){console.error("mdEditorOutput init failed:",e);}' +
+    '  try{' +
+    '    mdEditors.hint = new MarkdownPalettes("#mdEditorHint");' +
+    '    mdEditors.hint.content = document.getElementById("data-hint").value || "";' +
+    '  }catch(e){console.error("mdEditorHint init failed:",e);}' +
+    '  try{' +
+    '    mdEditors.hidden = new MarkdownPalettes("#mdEditorHidden");' +
+    '    mdEditors.hidden.content = document.getElementById("data-hidden").value || "";' +
+    '  }catch(e){console.error("mdEditorHidden init failed:",e);}' +
+    '  var sampleItems = document.querySelectorAll("#samplesContainer .sample-item");' +
+    '  for(var si=0;si<sampleItems.length;si++){' +
+    '    var sIdx = sampleItems[si].getAttribute("data-idx");' +
+    '    var sHintId = "sampleHint_" + sIdx;' +
+    '    if(document.getElementById(sHintId)){' +
+    '      try{' +
+    '        mdEditors["sample_" + sIdx] = new MarkdownPalettes("#" + sHintId);' +
+    '        var hintValEl = sampleItems[si].querySelector(".sample-hint-val");' +
+    '        if(hintValEl) mdEditors["sample_" + sIdx].content = hintValEl.value;' +
+    '      }catch(e){console.error("sample hint editor " + sIdx + " init failed:",e);}' +
+    '    }' +
+    '  }' +
+    '}' +
+    'document.addEventListener("DOMContentLoaded",function() {' +
+    '  var authStr = document.getElementById("data-authors").value || "";' +
+    '  if(authStr) {' +
+    '    authors = authStr.split("|").filter(function(n){return n.trim();});' +
+    '  }' +
+    '  for(var i=0;i<authors.length;i++) {' +
+    '    addAuthorByName(authors[i]);' +
+    '  }' +
+    '  if(window.MarkdownPalettes) {' +
+    '    initEditors();' +
+    '  } else {' +
+    '    var checkInterval = setInterval(function() {' +
+    '      if(window.MarkdownPalettes) {' +
+    '        clearInterval(checkInterval);' +
+    '        initEditors();' +
+    '      }' +
+    '    }, 100);' +
+    '    setTimeout(function() { clearInterval(checkInterval); }, 10000);' +
+    '  }' +
+    '  /* 事件委托：测试点编辑器 */' +
+    '  document.getElementById("testPointsBody").addEventListener("change",function(e){' +
+    '    var el=e.target;' +
+    '    if(!el.classList.contains("tp-editor"))return;' +
+    '    var idx=parseInt(el.getAttribute("data-idx"));' +
+    '    if(isNaN(idx)||idx<0||idx>=testPoints.length)return;' +
+    '    var field=el.getAttribute("data-field");' +
+    '    var val;' +
+    '    if(el.type==="checkbox")val=el.checked;' +
+    '    else val=el.value;' +
+    '    _tpOnChange(idx,field,val);' +
+    '    if(field==="subtask"||field==="score")renderTestPoints();' +
+    '  });' +
+    '  /* 事件委托：子任务删除按钮 */' +
+    '  document.getElementById("subtaskList").addEventListener("click",function(e){' +
+    '    var el=e.target;' +
+    '    if(!el.classList.contains("btn-st-del"))return;' +
+    '    var id=parseInt(el.getAttribute("data-id"));' +
+    '    if(!isNaN(id))_delSubtask(id);' +
+    '  });' +
+    '  /* 事件委托：子任务编辑器 */' +
+    '  document.getElementById("subtaskList").addEventListener("change",function(e){' +
+    '    var el=e.target;' +
+    '    if(!el.classList.contains("st-editor"))return;' +
+    '    var idx=parseInt(el.getAttribute("data-idx"));' +
+    '    if(isNaN(idx)||idx<0||idx>=subtasks.length)return;' +
+    '    var field=el.getAttribute("data-field");' +
+    '    _stOnChange(idx,field,el.value);' +
+    '  });' +
+    '});' +
+    '</script>', baseUrl);
+}
+
+function getEditProblemDataWebview(problemId, baseUrl, username) {
+  // 重定向到完整编辑页面，后期也可以独立使用
+  return getEditProblemWebview('', problemId, baseUrl, username);
+}
+
+// ===== 题目数据配置页面 =====
+function getTestDataConfigWebview() {
+  return '<!DOCTYPE html>' +
+    '<html lang="zh-CN">' +
+    '<head>' +
+    '<meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1.0">' +
+    '<meta http-equiv="Content-Security-Policy" content="default-src &#39;none&#39;; script-src &#39;unsafe-inline&#39;; style-src &#39;unsafe-inline&#39;; img-src data:;">' +
+    '<title>题目数据配置</title>' +
+    '<style>' +
+    '*{box-sizing:border-box}body{font-family:system-ui,sans-serif;background:#f7f9fb;padding:16px;color:#333;font-size:14px;line-height:1.6;max-width:1000px;margin:0 auto}' +
+    'h2{font-size:18px;color:#007acc;border-bottom:2px solid #007acc;padding-bottom:8px;margin:0 0 16px}' +
+    '.card{background:#fff;border-radius:10px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,0.08);margin-bottom:16px}' +
+    '.card-title{font-size:15px;font-weight:600;color:#333;margin:0 0 12px}' +
+    'label{display:block;font-weight:500;font-size:13px;color:#555;margin-bottom:4px}' +
+    'input,select{padding:8px 10px;border:1px solid #d0d7de;border-radius:6px;font-size:13px;background:#fff}' +
+    'input:focus,select:focus{border-color:#007acc;outline:none;box-shadow:0 0 0 2px rgba(0,122,204,0.15)}' +
+    'table{width:100%;border-collapse:collapse;font-size:13px}' +
+    'th{background:#f6f8fa;padding:8px 10px;text-align:left;font-weight:600;color:#555;border-bottom:2px solid #d0d7de;white-space:nowrap}' +
+    'td{padding:6px 10px;border-bottom:1px solid #eee;vertical-align:middle}' +
+    'tr:hover td{background:#f8fafb}' +
+    '.upload-area{border:2px dashed #d0d7de;border-radius:10px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s}' +
+    '.upload-area:hover{border-color:#007acc;background:#f0f7ff}' +
+    '.file-info{margin-top:12px;padding:10px 14px;border-radius:6px;font-size:13px;display:none}' +
+    '.config-preview{background:#0d1117;color:#e6edf3;border-radius:8px;padding:16px;font-family:Consolas,monospace;font-size:12px;line-height:1.5;overflow:auto;max-height:400px;white-space:pre-wrap;word-break:break-all;margin-top:10px}' +
+    '.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500}' +
+    '.badge-blue{background:#ddf4ff;color:#0969da}' +
+    '.summary-row td{background:#f6f8fa;font-weight:600}' +
+    '.summary-label{text-align:right;color:#555;padding-right:20px}' +
+    '.subtask-item{border:1px solid #e1e4e8;border-radius:8px;padding:14px;margin-bottom:10px;background:#fafbfc}' +
+    '.subtask-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}' +
+    '.st-label{font-weight:600;color:#333}' +
+    '.btn-group{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}' +
+    '.btn{padding:4px 10px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;border:none}' +
+    '.btn-p{background:#007acc;color:#fff}' +
+    '.btn-o{border:1px solid #d0d7de;background:#fff;color:#333}' +
+    '</style>' +
+    '</head>' +
+    '<body>' +
+    '<h2>题目数据配置</h2>' +
+    '<div class="card">' +
+    '<div class="card-title">1. 上传测试数据压缩包</div>' +
+    '<div class="upload-area" id="uploadArea">' +
+    '<div style="font-size:40px;color:#888;margin-bottom:8px">📦</div>' +
+    '<div style="color:#666;font-size:14px;margin-bottom:4px">点击选择或拖拽 ZIP 文件到此处</div>' +
+    '<div style="color:#999;font-size:12px">支持 .zip 格式，包含 .in/.out 测试数据文件</div>' +
+    '</div>' +
+    '<input type="file" id="fileInput" accept=".zip" style="display:none">' +
+    '<div class="file-info" id="fileInfo"></div>' +
+    '</div>' +
+    '<div class="card" id="testPointsCard" style="display:none">' +
+    '<div class="card-title">2. 测试点列表 <span class="badge badge-blue" id="testPointCount"></span></div>' +
+    '<div style="overflow-x:auto">' +
+    '<table><thead><tr>' +
+    '<th>#</th><th>输入文件</th><th>输出文件</th><th>时间限制</th><th>子任务编号</th><th>分值</th><th>Hack</th><th>依赖测试点</th>' +
+    '</tr></thead><tbody id="testPointsBody"></tbody></table>' +
+    '</div>' +
+    '<div class="btn-group">' +
+    '<button class="btn btn-p" id="btnResetScore">重置等分</button>' +
+    '<button class="btn btn-o" id="btnSetAllTime">统一时限</button>' +
+    '</div>' +
+    '<div style="margin-top:10px;padding:10px;background:#f6f8fa;border:1px solid #d0d7de;border-radius:6px">' +
+    '<div style="font-size:12px;font-weight:600;margin-bottom:6px">批量编辑</div>' +
+    '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">' +
+    '<input id="batchRange" placeholder="#1-#10" style="width:90px;padding:4px 8px;border:1px solid #d0d7de;border-radius:4px;font-size:12px">' +
+    '<select id="batchField" style="padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px;background:#fff">' +
+    '<option value="time">时限(ms)</option>' +
+    '<option value="score">分值</option>' +
+    '<option value="subtask">子任务</option>' +
+    '<option value="hack">Hack</option>' +
+    '<option value="depends">依赖</option>' +
+    '</select>' +
+    '<input id="batchValue" placeholder="值" style="width:80px;padding:4px 8px;border:1px solid #d0d7de;border-radius:4px;font-size:12px">' +
+    '<button class="btn btn-o" id="btnBatchApply" style="font-size:12px;padding:4px 10px">应用</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:#888;margin-top:4px">范围: #1-#10(区间), #1,#3,#5(列举), all(全部) | Hack填true/false</div>' +
+    '</div>' +
+    '</div>' +
+    '<div class="card" id="subtaskCard" style="display:none">' +
+    '<div class="card-title">3. 子任务配置</div>' +
+    '<div id="subtaskList"></div>' +
+    '<div class="btn-group">' +
+    '<button class="btn btn-o" id="btnAddSubtask">+ 添加子任务</button>' +
+    '</div>' +
+    '<div style="font-size:12px;color:#888;margin-top:8px">子任务计分方式: sum(求和) / max(最大值) / min(最小值) / average(平均分)。分值即为子任务权重。</div>' +
+    '</div>' +
+    '<div class="card" id="configCard" style="display:none">' +
+    '<div class="card-title">4. 生成配置文件</div>' +
+    '<div class="btn-group">' +
+    '<button id="btnGenerate" style="padding:8px 20px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:#2ea043;color:#fff">生成 config.json</button>' +
+    '<button id="btnDownload" style="display:none;padding:8px 20px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:#d29922;color:#fff">下载 config.json</button>' +
+    '</div>' +
+    '<div class="config-preview" id="configPreview">点击"生成 config.json"预览配置内容</div>' +
+    '</div>' +
+    '<script>' +
+    '(function(){' +
+    'console.log("[TestDataConfig] 页面已加载");' +
+    'var vscodeApi=acquireVsCodeApi();' +
+    'var testPoints=[];' +
+    'var subtasks=[{id:0,type:"min",weight:100}];' +
+    'var nextSubtaskId=1;' +
+    'var currentFileName="";' +
+    'var uploadArea=document.getElementById("uploadArea");' +
+    'var fileInput=document.getElementById("fileInput");' +
+    'var fileInfo=document.getElementById("fileInfo");' +
+    'uploadArea.onclick=function(){fileInput.click()};' +
+    'uploadArea.ondragover=function(e){e.preventDefault();uploadArea.style.borderColor="#007acc";uploadArea.style.background="#f0f7ff"};' +
+    'uploadArea.ondragleave=function(){uploadArea.style.borderColor="#d0d7de";uploadArea.style.background=""};' +
+    'uploadArea.ondrop=function(e){e.preventDefault();uploadArea.style.borderColor="#d0d7de";uploadArea.style.background="";if(e.dataTransfer.files.length)handleFile(e.dataTransfer.files[0])};' +
+    'fileInput.onchange=function(){if(this.files.length)handleFile(this.files[0])};' +
+    'function setFileInfo(msg,cls){fileInfo.style.display="block";fileInfo.textContent=msg;fileInfo.className="file-info "+cls}' +
+    'function handleFile(file){' +
+    'if(!file.name.toLowerCase().endsWith(".zip")){alert("请选择ZIP文件");return}' +
+    'currentFileName=file.name;' +
+    'setFileInfo("📄 "+file.name+" ("+(file.size/1024).toFixed(1)+" KB) 正在发送到扩展解析...","loading");' +
+    'var reader=new FileReader();' +
+    'reader.onload=function(e){' +
+    'var arr=new Uint8Array(e.target.result),bin="";' +
+    'for(var i=0;i<arr.byteLength;i++)bin+=String.fromCharCode(arr[i]);' +
+    'vscodeApi.postMessage({type:"parseZip",data:btoa(bin),fileName:file.name});' +
+    '};' +
+    'reader.readAsArrayBuffer(file);' +
+    '}' +
+    'window.addEventListener("message",function(e){' +
+    'var msg=e.data;' +
+    'if(msg.type==="parseResult"){' +
+    'console.log("[TestDataConfig] 收到解析结果:",msg.testPoints.length,"个测试点");' +
+    'for(var ti=0;ti<msg.testPoints.length;ti++){' +
+    '  var tp=msg.testPoints[ti];' +
+    '  if(tp.hack===undefined)tp.hack=false;' +
+    '  if(tp.depends===undefined)tp.depends=[];' +
+    '  console.log("  ["+(ti+1)+"] "+tp.inFile+" + "+tp.outFile);' +
+    '}' +
+    'testPoints=msg.testPoints;' +
+    'currentFileName=msg.fileName;' +
+    'autoDistributeScore();renderTestPoints();renderSubtasks();' +
+    'document.getElementById("testPointsCard").style.display="block";' +
+    'document.getElementById("subtaskCard").style.display="block";' +
+    'document.getElementById("configCard").style.display="block";' +
+    'setFileInfo("📄 "+currentFileName+" — 解析到 "+testPoints.length+" 个测试点","success");' +
+    '}else if(msg.type==="parseError"){' +
+    'console.error("[TestDataConfig] 解析错误:",msg.error);' +
+    'setFileInfo("❌ 解析失败: "+msg.error,"error");' +
+    '}' +
+    '});' +
+    'function autoDistributeScore(){' +
+    'var n=testPoints.length;if(n===0)return;' +
+    'var ts=100,bs=Math.floor(ts/n),r=ts-bs*n;' +
+    'for(var i=0;i<n;i++)testPoints[i].score=bs+(i===n-1?r:0);' +
+    '}' +
+    'function _calcSubtaskTotal(){' +
+    'var t=0;' +
+    'for(var si=0;si<subtasks.length;si++){' +
+    'var st=subtasks[si];var sc=[];' +
+    'for(var pi=0;pi<testPoints.length;pi++){if(testPoints[pi].subtask===st.id)sc.push(testPoints[pi].score)}' +
+    'if(sc.length===0)continue;' +
+    'if(st.type==="sum"){var s=0;for(var ki=0;ki<sc.length;ki++)s+=sc[ki];t+=s*st.weight}' +
+    'else if(st.type==="min"){var s=sc[0];for(var ki=1;ki<sc.length;ki++)if(sc[ki]<s)s=sc[ki];t+=s*st.weight}' +
+    'else if(st.type==="max"){var s=sc[0];for(var ki=1;ki<sc.length;ki++)if(sc[ki]>s)s=sc[ki];t+=s*st.weight}' +
+    'else if(st.type==="average"){var s=0;for(var ki=0;ki<sc.length;ki++)s+=sc[ki];t+=s/sc.length*st.weight}' +
+    '}' +
+    'return t' +
+    '}' +
+    'function renderTestPoints(){' +
+    'var tbody=document.getElementById("testPointsBody");' +
+    'var h="",total=0;' +
+    'for(var i=0;i<testPoints.length;i++){' +
+    'var tp=testPoints[i];total+=tp.score;' +
+    'var ms=Math.round(tp.time*1000);' +
+    'var opts="";' +
+    'for(var s=0;s<subtasks.length;s++)opts+="<option value=\\""+subtasks[s].id+"\\""+(subtasks[s].id===tp.subtask?" selected":"")+">子任务#"+subtasks[s].id+"</option>";' +
+    'var depStr = (tp.depends && tp.depends.length>0) ? tp.depends.join(",") : "";' +
+    'h+="<tr>"+' +
+    '"<td style=\\"font-weight:600;color:#0969da;text-align:center\\">"+(i+1)+"</td>"+' +
+    '"<td style=\\"font-size:12px;color:#555;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\\" title=\\""+tp.inFile+"\\">"+tp.inFile+"</td>"+' +
+    '"<td style=\\"font-size:12px;color:#555;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap\\" title=\\""+tp.outFile+"\\">"+tp.outFile+"</td>"+' +
+    '"<td><input style=\\"width:70px;padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px\\" type=\\"number\\" min=\\"1\\" step=\\"1\\" value=\\""+ms+"\\" onchange=\\"(function(i,v){testPoints[i].time=v/1000;updateConfigPreview()})("+i+",parseInt(this.value)||1000)\\"> ms</td>"+' +
+    '"<td><select style=\\"width:85px;padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px;background:#fff\\" onchange=\\"(function(i,v){testPoints[i].subtask=v;renderTestPoints()})("+i+",parseInt(this.value))\\">"+opts+"</select></td>"+' +
+    '"<td><input style=\\"width:70px;padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px\\" type=\\"number\\" min=\\"0\\" step=\\"0.5\\" value=\\""+tp.score+"\\" onchange=\\"(function(i,v){testPoints[i].score=v;renderTestPoints()})("+i+",parseFloat(this.value)||0)\\"></td>"+' +
+    '"<td style=\\"text-align:center\\"><input type=\\"checkbox\\" style=\\"cursor:pointer\\""+(tp.hack?" checked":"")+" onchange=\\"(function(i,v){testPoints[i].hack=v;updateConfigPreview()})("+i+",this.checked)\\"></td>"+' +
+    '"<td><input style=\\"width:80px;padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px\\" type=\\"text\\" value=\\""+depStr+"\\" placeholder=\\"1,2,3\\" onchange=\\"(function(i,v){testPoints[i].depends=v? v.split(",").map(function(x){return parseInt(x.trim())}).filter(function(x){return !isNaN(x)}):[];updateConfigPreview()})("+i+",this.value)\\"></td></tr>"' +
+    '}' +
+    'h+="<tr class=\\"summary-row\\"><td colspan=\\"7\\" class=\\"summary-label\\">总分</td><td><strong>"+(subtasks.length>0?_calcSubtaskTotal():total)+"</strong></td></tr>";' +
+    'tbody.innerHTML=h;' +
+    'document.getElementById("testPointCount").textContent=testPoints.length+"个测试点";' +
+    'updateConfigPreview();' +
+    '}' +
+    'function renderSubtasks(){' +
+    'var container=document.getElementById("subtaskList");' +
+    'var h="";' +
+    'for(var i=0;i<subtasks.length;i++){' +
+    'var st=subtasks[i];' +
+    'var tl=({sum:"求和",min:"最小值",max:"最大值",average:"平均分"})[st.type]||st.type;' +
+    'var ca=[];' +
+    'for(var j=0;j<testPoints.length;j++){if(testPoints[j].subtask===st.id)ca.push(j+1)}' +
+    'var ch=ca.length===0?"<span style=\\"color:#999\\">无测试点</span>":"#"+ca.join(",#");' +
+    'h+="<div class=\\"subtask-item\\"><div class=\\"subtask-header\\"><span class=\\"st-label\\">子任务#"+st.id+" "+tl+"</span>"+' +
+    '"<button class=\\"btn\\" style=\\"background:#cf222e;color:#fff\\" onclick=\\"(function(id){' +
+    'if(subtasks.length<=1)return;var idx=-1;for(var i=0;i<subtasks.length;i++){if(subtasks[i].id===id){idx=i;break}}' +
+    'if(idx<0)return;var rid=subtasks[idx].id;subtasks.splice(idx,1);' +
+    'for(var i=0;i<testPoints.length;i++){if(testPoints[i].subtask===rid)testPoints[i].subtask=subtasks[0].id}' +
+    'renderSubtasks();renderTestPoints();' +
+    '})('+st.id+')"'+ (subtasks.length<=1?' disabled style="opacity:0.5"':'') +'">删除</button></div>' +
+    '<div class=\\"subtask-body\\">' +
+    '<div><label>计分方式</label><select style=\\"width:100%;padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px;background:#fff\\" onchange=\\"(function(id,v){for(var i=0;i<subtasks.length;i++){if(subtasks[i].id===id){subtasks[i].type=v;break}}updateConfigPreview()})('+st.id+',this.value)\\">' +
+    '<option value=\\"sum\\"'+ (st.type==="sum"?' selected':'') +'>sum(求和)</option>' +
+    '<option value=\\"min\\"'+ (st.type==="min"?' selected':'') +'>min(最小值)</option>' +
+    '<option value=\\"max\\"'+ (st.type==="max"?' selected':'') +'>max(最大值)</option>' +
+    '<option value=\\"average\\"'+ (st.type==="average"?' selected':'') +'>average(平均分)</option>' +
+    '</select></div>' +
+    '<div><label>分值(权重)</label><input type=\\"number\\" min=\\"0\\" step=\\"0.5\\" value=\\""+st.weight+"\\" style=\\"width:100%;padding:4px 6px;border:1px solid #d0d7de;border-radius:4px;font-size:12px\\" onchange=\\"(function(id,v){for(var i=0;i<subtasks.length;i++){if(subtasks[i].id===id){subtasks[i].weight=v;break}}renderTestPoints();updateConfigPreview()})('+st.id+',parseFloat(this.value)||0)\\"></div>' +
+    '<div style=\\"grid-column:span 2\\"><label>包含测试点</label><div style=\\"padding:8px 10px;background:#fff;border:1px solid #d0d7de;border-radius:6px;font-size:12px;color:#555\\">'+ch+'</div></div>' +
+    '</div></div>"' +
+    '}' +
+    'container.innerHTML=h;' +
+    'updateConfigPreview();' +
+    '}' +
+    'document.getElementById("btnResetScore").onclick=function(){autoDistributeScore();renderTestPoints()};' +
+    'document.getElementById("btnSetAllTime").onclick=function(){var v=prompt("统一时间限制(毫秒):","1000");if(v===null)return;var t=parseInt(v);if(isNaN(t)||t<=0){alert("请输入有效正整数");return}for(var i=0;i<testPoints.length;i++)testPoints[i].time=t/1000;renderTestPoints()};' +
+    'function batchUpdateTestPoints(){' +
+    'var r=document.getElementById("batchRange").value.trim();' +
+    'var f=document.getElementById("batchField").value;' +
+    'var v=document.getElementById("batchValue").value.trim();' +
+    'if(!r){alert("请输入范围");return}' +
+    'if(!v){alert("请输入值");return}' +
+    'var idxs=[];' +
+    'if(r==="all"){for(var i=0;i<testPoints.length;i++)idxs.push(i)}' +
+    'else{' +
+    'var pts=r.replace(/#/g,"").split(",");' +
+    'for(var pi=0;pi<pts.length;pi++){' +
+    'var p=pts[pi].trim();' +
+    'if(p.indexOf("-")>=0){' +
+    'var rg=p.split("-");var s=parseInt(rg[0])-1;var e=parseInt(rg[1])-1;' +
+    'if(!isNaN(s)&&!isNaN(e)){if(s<0)s=0;if(e>=testPoints.length)e=testPoints.length-1;for(var ri=s;ri<=e;ri++)idxs.push(ri)}' +
+    '}else{' +
+    'var idx=parseInt(p)-1;if(!isNaN(idx)&&idx>=0&&idx<testPoints.length)idxs.push(idx)' +
+    '}' +
+    '}' +
+    '}' +
+    'if(idxs.length===0){alert("没有匹配的测试点");return}' +
+    'if(f==="time"){var nv=parseInt(v);if(isNaN(nv)||nv<=0){alert("时间必须为正整数(毫秒)");return}for(var bi=0;bi<idxs.length;bi++)testPoints[idxs[bi]].time=nv/1000}' +
+    'else if(f==="score"){var nv=parseFloat(v);if(isNaN(nv)||nv<0){alert("分值必须为非负数");return}for(var bi=0;bi<idxs.length;bi++)testPoints[idxs[bi]].score=nv}' +
+    'else if(f==="subtask"){var nv=parseInt(v);if(isNaN(nv)){alert("子任务编号必须为整数");return}for(var bi=0;bi<idxs.length;bi++)testPoints[idxs[bi]].subtask=nv}' +
+    'else if(f==="hack"){var nv=v==="true";for(var bi=0;bi<idxs.length;bi++)testPoints[idxs[bi]].hack=nv}' +
+    'else if(f==="depends"){var nv=v?v.split(",").map(function(x){return parseInt(x.trim())}).filter(function(x){return !isNaN(x)}):[];for(var bi=0;bi<idxs.length;bi++)testPoints[idxs[bi]].depends=nv}' +
+    'renderTestPoints();renderSubtasks();' +
+    'alert("已更新 "+idxs.length+" 个测试点")' +
+    '}' +
+    'document.getElementById("btnBatchApply").onclick=batchUpdateTestPoints;' +
+    'document.getElementById("btnAddSubtask").onclick=function(){subtasks.push({id:nextSubtaskId++,type:"min",weight:10});renderSubtasks();renderTestPoints()};' +
+    'document.getElementById("btnGenerate").onclick=function(){if(testPoints.length===0){alert("请先上传测试数据");return}updateConfigPreview();document.getElementById("btnDownload").style.display="inline"};' +
+    'document.getElementById("btnDownload").onclick=function(){var s=generateConfig();var b=new Blob([s],{type:"application/json"});var u=URL.createObjectURL(b);var a=document.createElement("a");a.href=u;a.download="config.json";document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(u)};' +
+    'function generateConfig(){' +
+    'var c=[];for(var i=0;i<testPoints.length;i++){var tp=testPoints[i];var cas={in:tp.inFile,out:tp.outFile,time:tp.time,score:tp.score};' +
+    'if(tp.hack)cas.hack=true;' +
+    'if(tp.depends&&tp.depends.length>0)cas.depends=tp.depends;' +
+    'c.push(cas)}' +
+    'var sm=[];for(var i=0;i<subtasks.length;i++){var st=subtasks[i];var sc=[];for(var j=0;j<testPoints.length;j++){if(testPoints[j].subtask===st.id)sc.push(j+1)}' +
+    'if(sc.length>0){var e={type:st.type,cases:sc};if(st.weight)e.weight=st.weight;sm.push(e)}}' +
+    'var cfg={cases:c};if(sm.length>0)cfg.score_map=sm;return JSON.stringify(cfg,null,2)}' +
+    'function updateConfigPreview(){var p=document.getElementById("configPreview");if(testPoints.length===0){p.textContent="暂无测试点数据";return}' +
+    'var raw=JSON.parse(generateConfig());var totalScore=0;for(var i=0;i<raw.cases.length;i++)totalScore+=raw.cases[i].score;' +
+    'var preview=JSON.stringify(raw,null,2);if(subtasks.length===0&&Math.abs(totalScore-100)>0.01){preview="\\u26a0\\ufe0f \\u5206\\u503c\\u68c0\\u67e5\\uff1a\\u6240\\u6709\\u6d4b\\u8bd5\\u70b9\\u5206\\u6570\\u4e4b\\u548c\\u4e3a "+totalScore+"\\uff0c\\u4e0d\\u7b49\\u4e8e 100\\uff0c\\u8bf7\\u8c03\\u6574\\uff01\\n\\n"+preview}' +
+    'p.textContent=preview}' +
+    'console.log("[TestDataConfig] 初始化完成");' +
+    '})();' +
+    '<\/script>' +
+    '</body>' +
+    '</html>';
+}
+
 module.exports = {
   getHomepageWebview: getHomepageWebview,
   getContestWebviewContent: getContestWebviewContent,
@@ -2610,5 +4012,11 @@ module.exports = {
   getProblemSetDetailWebview: getProblemSetDetailWebview,
   getProblemSetEditorWebview: getProblemSetEditorWebview,
   getRanklistWebview: getRanklistWebview,
-  getUserSearchWebview: getUserSearchWebview
+  getUserSearchWebview: getUserSearchWebview,
+  getTestDataListWebview: getTestDataListWebview,
+  getUpdateUserInfoWebview: getUpdateUserInfoWebview,
+  getCreateProblemWebview: getCreateProblemWebview,
+  getEditProblemWebview: getEditProblemWebview,
+  getEditProblemDataWebview: getEditProblemDataWebview,
+  getTestDataConfigWebview: getTestDataConfigWebview
 };
