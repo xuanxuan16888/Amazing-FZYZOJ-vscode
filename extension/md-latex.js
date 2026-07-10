@@ -83,6 +83,28 @@ mdForYzoj.renderer.rules.ordered_list_close = function() { return '</div>'; };
 mdForYzoj.renderer.rules.list_item_open = function() { return '<div class="yzoj-md-li">'; };
 mdForYzoj.renderer.rules.list_item_close = function() { return '</div>'; };
 
+// =========================== 图片渲染规则（处理 YZOJ 的 =WxH 尺寸语法） ===========================
+
+function yzojImageRenderer(tokens, idx, options, env, self) {
+  var token = tokens[idx];
+  var src = token.attrGet('src') || '';
+  var alt = token.content || '';
+  var title = token.attrGet('title') || '';
+  // 匹配末尾的 =WxH 语法（如 =200x100），注意前面必须有空格
+  var sizeMatch = src.match(/^(.*)\s+=(\d+)x(\d+)$/);
+  var attrs = 'src="' + escHtml(sizeMatch ? sizeMatch[1] : src) + '" alt="' + escHtml(alt) + '"';
+  if (sizeMatch) {
+    attrs += ' width="' + sizeMatch[2] + '" height="' + sizeMatch[3] + '"';
+  }
+  if (title) attrs += ' title="' + escHtml(title) + '"';
+  return '<img ' + attrs + '>';
+}
+
+// 为所有 markdown-it 实例注册自定义图片渲染器
+md.renderer.rules.image = yzojImageRenderer;
+mdNoKatex.renderer.rules.image = yzojImageRenderer;
+mdForYzoj.renderer.rules.image = yzojImageRenderer;
+
 // =========================== HTML 转义 ===========================
 
 function escHtml(str) {
